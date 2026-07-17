@@ -1,0 +1,8 @@
+*.vcd
+*.fst
+build/
+sim/
+formal/**/*_check/
+formal/**/engine_*/
+__pycache__/
+*.hex
