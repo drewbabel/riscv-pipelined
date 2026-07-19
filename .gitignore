@@ -6,3 +6,4 @@ formal/**/*_check/
 formal/**/engine_*/
 __pycache__/
 *.hex
+!tests/*.hex
