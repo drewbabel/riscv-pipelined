@@ -43,7 +43,7 @@ module datapath
   logic [     1:0] result_src;
   logic            pc_src;
   logic            pc_target_src;
-  alu_op_e         alu_ctrl;
+  alu_pkg::alu_op_e alu_ctrl;
   logic            zero;
   logic            lt;
   logic            ltu;
@@ -63,7 +63,7 @@ module datapath
   logic alu_src_ex;
   logic mem_write_ex;
   logic [1:0] result_src_ex;
-  alu_op_e alu_ctrl_ex;
+  alu_pkg::alu_op_e alu_ctrl_ex;
   logic [XLEN-1:0] rs1_data_ex;
   logic [XLEN-1:0] rs2_data_ex;
   logic [4:0] rd_ex;
