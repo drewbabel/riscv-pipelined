@@ -2,8 +2,8 @@
 *.fst
 build/
 sim/
-formal/**/*_check/
-formal/**/engine_*/
+formal/*/
+!formal/rvfi/
 __pycache__/
 *.hex
 !tests/*.hex
