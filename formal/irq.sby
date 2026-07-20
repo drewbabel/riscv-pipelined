@@ -1,0 +1,13 @@
+[options]
+mode prove
+depth 24
+
+[engines]
+smtbmc
+
+[script]
+read -formal irq_formal.v
+prep -top irq_formal
+
+[files]
+build/irq_formal.v

@@ -89,7 +89,7 @@ module dmem_tb ();
     check_read(32'h00000008);
     check_read(32'h00000004);
 
-    // we low: the write must not land
+    // we low blocks write
     write_blocked(32'h00000004, 32'hFFFFFFFF);
     check_read(32'h00000004);
 

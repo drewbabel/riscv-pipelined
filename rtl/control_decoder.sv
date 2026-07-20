@@ -21,7 +21,7 @@ module control_decoder
     output logic        is_mret
 );
 
-  // imm_src encoding: 0=I, 1=S, 2=B, 3=U, 4=J
+  // imm_src 0=I 1=S 2=B 3=U 4=J
   localparam logic [2:0] ImmI = 3'd0;
   localparam logic [2:0] ImmS = 3'd1;
   localparam logic [2:0] ImmB = 3'd2;
@@ -32,7 +32,7 @@ module control_decoder
   localparam logic [1:0] SrcAPc = 2'd1;
   localparam logic [1:0] SrcAZero = 2'd2;
 
-  // result_src: 0=alu, 1=mem read, 2=pc+4
+  // result_src 0=alu 1=mem 2=pc+4
   localparam logic [1:0] ResAlu = 2'd0;
   localparam logic [1:0] ResMem = 2'd1;
   localparam logic [1:0] ResPc4 = 2'd2;

@@ -30,7 +30,20 @@ module datapath
     output logic [     3:0] dbg_mem_wmask,
     output logic [XLEN-1:0] dbg_mem_wdata,
     output logic [XLEN-1:0] dbg_mem_rdata,
-    output logic            dbg_trap
+    output logic            dbg_trap,
+    output logic [XLEN-1:0] dbg_csr_wdata,
+    output logic [XLEN-1:0] dbg_mscratch,
+    output logic [XLEN-1:0] dbg_mstatus,
+    output logic [XLEN-1:0] dbg_mtvec,
+    output logic [XLEN-1:0] dbg_mepc,
+    output logic [XLEN-1:0] dbg_mcause,
+    output logic [XLEN-1:0] dbg_mtval,
+    output logic [XLEN-1:0] dbg_mie,
+    output logic [XLEN-1:0] dbg_mip,
+    output logic [XLEN-1:0] dbg_mcycle,
+    output logic [XLEN-1:0] dbg_minstret,
+    output logic [XLEN-1:0] dbg_mcycleh,
+    output logic [XLEN-1:0] dbg_minstreth
 `endif
 );
 
@@ -44,6 +57,7 @@ module datapath
   logic             [XLEN-1:0] forwarded_rs1;
   logic             [XLEN-1:0] forwarded_rs2;
   logic             [XLEN-1:0] result;
+  logic             [XLEN-1:0] result_ex;
   logic             [XLEN-1:0] load_data;
   logic             [     7:0] ld_byte;
   logic             [    15:0] ld_half;
@@ -393,7 +407,26 @@ module datapath
       .trap_vector         (trap_vector),
       .mret_taken          (mret_taken),
       .mepc_out            (mepc_out)
+`ifdef RISCV_FORMAL
+      ,
+      .dbg_csr_wdata       (dbg_csr_wdata),
+      .dbg_mscratch        (dbg_mscratch),
+      .dbg_mstatus         (dbg_mstatus),
+      .dbg_mtvec           (dbg_mtvec),
+      .dbg_mepc            (dbg_mepc),
+      .dbg_mcause          (dbg_mcause),
+      .dbg_mtval           (dbg_mtval),
+      .dbg_mie             (dbg_mie),
+      .dbg_mip             (dbg_mip),
+      .dbg_mcycle          (dbg_mcycle),
+      .dbg_minstret        (dbg_minstret),
+      .dbg_mcycleh         (dbg_mcycleh),
+      .dbg_minstreth       (dbg_minstreth)
+`endif
   );
+
+  // CSR read to writeback
+  assign result_ex = csr_access_ex ? csr_rdata : alu_result;
 
   assign flush = pc_src_ex | trap_taken | mret_taken;
 
@@ -403,7 +436,7 @@ module datapath
       reg_write_mem <= 1'b0;
       mem_write_mem <= 1'b0;
     end else begin
-      alu_result_mem <= alu_result;
+      alu_result_mem <= result_ex;
       pc_plus4_mem   <= pc_plus4_ex;
       write_data_mem <= forwarded_rs2;
       mem_write_mem  <= mem_write_ex && !trap_taken;

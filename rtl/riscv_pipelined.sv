@@ -29,7 +29,20 @@ module riscv_pipelined
     output logic [     3:0] dbg_mem_wmask,
     output logic [XLEN-1:0] dbg_mem_wdata,
     output logic [XLEN-1:0] dbg_mem_rdata,
-    output logic            dbg_trap
+    output logic            dbg_trap,
+    output logic [XLEN-1:0] dbg_csr_wdata,
+    output logic [XLEN-1:0] dbg_mscratch,
+    output logic [XLEN-1:0] dbg_mstatus,
+    output logic [XLEN-1:0] dbg_mtvec,
+    output logic [XLEN-1:0] dbg_mepc,
+    output logic [XLEN-1:0] dbg_mcause,
+    output logic [XLEN-1:0] dbg_mtval,
+    output logic [XLEN-1:0] dbg_mie,
+    output logic [XLEN-1:0] dbg_mip,
+    output logic [XLEN-1:0] dbg_mcycle,
+    output logic [XLEN-1:0] dbg_minstret,
+    output logic [XLEN-1:0] dbg_mcycleh,
+    output logic [XLEN-1:0] dbg_minstreth
 `endif
 );
 
@@ -62,7 +75,20 @@ module riscv_pipelined
       .dbg_mem_wmask(dbg_mem_wmask),
       .dbg_mem_wdata(dbg_mem_wdata),
       .dbg_mem_rdata(dbg_mem_rdata),
-      .dbg_trap     (dbg_trap)
+      .dbg_trap     (dbg_trap),
+      .dbg_csr_wdata(dbg_csr_wdata),
+      .dbg_mscratch (dbg_mscratch),
+      .dbg_mstatus  (dbg_mstatus),
+      .dbg_mtvec    (dbg_mtvec),
+      .dbg_mepc     (dbg_mepc),
+      .dbg_mcause   (dbg_mcause),
+      .dbg_mtval    (dbg_mtval),
+      .dbg_mie      (dbg_mie),
+      .dbg_mip      (dbg_mip),
+      .dbg_mcycle   (dbg_mcycle),
+      .dbg_minstret (dbg_minstret),
+      .dbg_mcycleh  (dbg_mcycleh),
+      .dbg_minstreth(dbg_minstreth)
 `endif
   );
 
