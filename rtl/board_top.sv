@@ -31,6 +31,7 @@ module board_top #(
   logic            gpio_sel;
   logic            uart_sel;
   logic            tx_ready;
+  logic            timer_irq;
   logic            tx_valid;
   logic [    15:0] led_reg;
 
@@ -156,6 +157,7 @@ module board_top #(
       .rst_n      (core_rst_n),
       .instr      (instr),
       .read_data  (read_data),
+      .timer_irq  (timer_irq),
       .pc         (pc),
       .mem_write  (),
       .alu_result (),
@@ -194,7 +196,6 @@ module board_top #(
       .rdata  (mem_rdata)
   );
 
-  // irq unwired
   clint #(
       .XLEN(XLEN)
   ) clint_inst (
@@ -206,7 +207,7 @@ module board_top #(
       .addr     (mem_addr),
       .wdata    (store_data),
       .rdata    (clint_rdata),
-      .timer_irq()
+      .timer_irq(timer_irq)
   );
 
 endmodule
