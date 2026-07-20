@@ -98,7 +98,7 @@ module regfile_tb ();
     write_reg(5, 32'hDEAD_BEEF);
     check_reads(5, 5);
 
-    // Write to x0, then read x0: must stay zero
+    // x0 stays zero
     write_reg(0, 32'hFFFF_FFFF);
     check_reads(0, 0);
 
