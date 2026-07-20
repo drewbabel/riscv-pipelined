@@ -6,9 +6,6 @@ module control_unit
     input  logic             [ 2:0] funct3,
     input  logic             [11:0] funct12,
     input  logic                    funct7b5,
-    input  logic                    zero,
-    input  logic                    lt,
-    input  logic                    ltu,
     output logic                    reg_write,
     output logic             [ 2:0] imm_src,
     output logic             [ 1:0] alu_a_src,
@@ -16,13 +13,12 @@ module control_unit
     output logic                    alu_src,
     output logic                    mem_write,
     output logic             [ 1:0] result_src,
-    output logic                    pc_src,
-    output alu_pkg::alu_op_e        alu_ctrl
+    output alu_pkg::alu_op_e        alu_ctrl,
+    output logic                    branch,
+    output logic                    jump
 );
 
   logic [1:0] alu_op;
-  logic branch;
-  logic jump;
   logic csr_access;
   logic is_ecall;
   logic is_ebreak;
@@ -55,21 +51,5 @@ module control_unit
       .op5     (op[5]),
       .alu_ctrl(alu_ctrl)
   );
-
-  logic branch_taken;
-
-  always_comb begin
-    case (funct3)
-      3'b000:  branch_taken = zero;  // beq
-      3'b001:  branch_taken = !zero;  // bne
-      3'b100:  branch_taken = lt;  // blt
-      3'b101:  branch_taken = !lt;  // bge
-      3'b110:  branch_taken = ltu;  // bltu
-      3'b111:  branch_taken = !ltu;  // bgeu
-      default: branch_taken = 1'b0;
-    endcase
-  end
-
-  assign pc_src = (branch & branch_taken) | jump;
 
 endmodule
