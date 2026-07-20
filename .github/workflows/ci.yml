@@ -21,9 +21,60 @@ jobs:
             make MOD="$mod"
           done
 
+  core-formal-list:
+    runs-on: ubuntu-latest
+    outputs:
+      groups: ${{ steps.list.outputs.groups }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install sv2v
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          unzip -j sv2v.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Clone riscv-formal
+        run: |
+          git clone https://github.com/YosysHQ/riscv-formal.git
+          git -C riscv-formal checkout 2bd7410
+      - name: Split checks into groups
+        id: list
+        env:
+          RISCV_FORMAL_DIR: ${{ github.workspace }}/riscv-formal
+        run: |
+          groups=$(bash formal/rvfi/run.sh --list | python3 -c "import sys, json; n=[l.strip() for l in sys.stdin if l.strip()]; g=[[] for _ in range(8)]; [g[i % 8].append(x) for i, x in enumerate(n)]; print(json.dumps([' '.join(x) for x in g if x]))")
+          echo "groups=$groups" >> "$GITHUB_OUTPUT"
+
+  core-formal:
+    needs: core-formal-list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.core-formal-list.outputs.groups) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YosysHQ/setup-oss-cad-suite@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install sv2v
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          unzip -j sv2v.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Clone riscv-formal
+        run: |
+          git clone https://github.com/YosysHQ/riscv-formal.git
+          git -C riscv-formal checkout 2bd7410
+      - name: Prove the group
+        env:
+          RISCV_FORMAL_DIR: ${{ github.workspace }}/riscv-formal
+        run: bash formal/rvfi/run.sh ${{ matrix.group }}
+
   ci-gate:
     if: always()
-    needs: [testbenches]
+    needs: [testbenches, core-formal-list, core-formal]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all CI jobs succeeded
