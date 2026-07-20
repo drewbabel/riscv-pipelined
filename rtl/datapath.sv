@@ -9,6 +9,7 @@ module datapath
     input  logic            rst_n,
     input  logic [XLEN-1:0] instr,
     input  logic [XLEN-1:0] read_data,
+    input  logic            timer_irq,
     output logic [XLEN-1:0] pc,
     output logic            mem_write,
     output logic [XLEN-1:0] alu_result,
@@ -149,7 +150,6 @@ module datapath
   logic                        exc_load_misaligned;
   logic                        exc_store_misaligned;
   logic                        mem_misaligned;
-  logic                        timer_irq;
   logic             [XLEN-1:0] csr_rdata;
   logic                        trap_taken;
   logic             [XLEN-1:0] trap_vector;
@@ -286,7 +286,6 @@ module datapath
   end
 
   assign commit_valid = valid_ex;
-  assign timer_irq    = 1'b0;
 
   hazard_unit #(
       .XLEN(XLEN)
@@ -401,7 +400,7 @@ module datapath
       .exc_load_misaligned (exc_load_misaligned),
       .exc_store_misaligned(exc_store_misaligned),
       .is_mret             (is_mret_ex && commit_valid),
-      .timer_irq           (timer_irq),
+      .timer_irq           (timer_irq && commit_valid),
       .csr_rdata           (csr_rdata),
       .trap_taken          (trap_taken),
       .trap_vector         (trap_vector),

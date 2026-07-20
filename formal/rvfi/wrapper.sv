@@ -50,6 +50,7 @@ module rvfi_wrapper (
       .rst_n        (!reset),
       .instr        (instr),
       .read_data    (read_data),
+      .timer_irq    (1'b0),
       .pc           (pc),
       .mem_write    (mem_write),
       .alu_result   (alu_result),
