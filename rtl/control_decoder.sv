@@ -138,18 +138,7 @@ module control_decoder
         end
       end
 
-      default: begin
-        reg_write     = 1'b0;
-        imm_src       = 3'bxxx;
-        alu_a_src     = 2'bxx;
-        pc_target_src = 1'bx;
-        alu_src       = 1'bx;
-        mem_write     = 1'b0;
-        result_src    = 2'bxx;
-        branch        = 1'b0;
-        jump          = 1'b0;
-        alu_op        = 2'bxx;
-      end
+      default: ;  // Illegal opcode nop
     endcase
   end
 

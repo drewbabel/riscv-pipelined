@@ -17,8 +17,19 @@ module riscv_pipelined
     output logic [XLEN-1:0] mem_addr
 `ifdef RISCV_FORMAL
     ,
-    output logic [XLEN-1:0] dbg_rs1_data,
-    output logic [XLEN-1:0] dbg_rd_wdata
+    output logic            dbg_valid,
+    output logic [XLEN-1:0] dbg_insn,
+    output logic [XLEN-1:0] dbg_pc_rdata,
+    output logic [XLEN-1:0] dbg_pc_wdata,
+    output logic [XLEN-1:0] dbg_rs1_rdata,
+    output logic [XLEN-1:0] dbg_rs2_rdata,
+    output logic [XLEN-1:0] dbg_rd_wdata,
+    output logic            dbg_reg_write,
+    output logic [XLEN-1:0] dbg_mem_addr,
+    output logic [     3:0] dbg_mem_wmask,
+    output logic [XLEN-1:0] dbg_mem_wdata,
+    output logic [XLEN-1:0] dbg_mem_rdata,
+    output logic            dbg_trap
 `endif
 );
 
@@ -39,8 +50,19 @@ module riscv_pipelined
       .mem_addr   (mem_addr)
 `ifdef RISCV_FORMAL
       ,
-      .dbg_rs1_data(dbg_rs1_data),
-      .dbg_rd_wdata(dbg_rd_wdata)
+      .dbg_valid    (dbg_valid),
+      .dbg_insn     (dbg_insn),
+      .dbg_pc_rdata (dbg_pc_rdata),
+      .dbg_pc_wdata (dbg_pc_wdata),
+      .dbg_rs1_rdata(dbg_rs1_rdata),
+      .dbg_rs2_rdata(dbg_rs2_rdata),
+      .dbg_rd_wdata (dbg_rd_wdata),
+      .dbg_reg_write(dbg_reg_write),
+      .dbg_mem_addr (dbg_mem_addr),
+      .dbg_mem_wmask(dbg_mem_wmask),
+      .dbg_mem_wdata(dbg_mem_wdata),
+      .dbg_mem_rdata(dbg_mem_rdata),
+      .dbg_trap     (dbg_trap)
 `endif
   );
 

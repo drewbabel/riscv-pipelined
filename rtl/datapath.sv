@@ -1,5 +1,6 @@
 module datapath
   import alu_pkg::*;
+  import opcode_pkg::*;
 #(
     parameter int XLEN = 32
 ) (
@@ -17,8 +18,19 @@ module datapath
     output logic [XLEN-1:0] mem_addr
 `ifdef RISCV_FORMAL
     ,
-    output logic [XLEN-1:0] dbg_rs1_data,
-    output logic [XLEN-1:0] dbg_rd_wdata
+    output logic            dbg_valid,
+    output logic [XLEN-1:0] dbg_insn,
+    output logic [XLEN-1:0] dbg_pc_rdata,
+    output logic [XLEN-1:0] dbg_pc_wdata,
+    output logic [XLEN-1:0] dbg_rs1_rdata,
+    output logic [XLEN-1:0] dbg_rs2_rdata,
+    output logic [XLEN-1:0] dbg_rd_wdata,
+    output logic            dbg_reg_write,
+    output logic [XLEN-1:0] dbg_mem_addr,
+    output logic [     3:0] dbg_mem_wmask,
+    output logic [XLEN-1:0] dbg_mem_wdata,
+    output logic [XLEN-1:0] dbg_mem_rdata,
+    output logic            dbg_trap
 `endif
 );
 
@@ -102,12 +114,41 @@ module datapath
   logic                        pc_src_ex;
   logic             [XLEN-1:0] pc_target_ex;
 
+  // CSR trap
+  logic                        csr_access;
+  logic                        is_ecall;
+  logic                        is_ebreak;
+  logic                        is_mret;
+  logic                        exc_illegal;
+  logic             [XLEN-1:0] instr_ex;
+  logic                        csr_access_ex;
+  logic                        is_ecall_ex;
+  logic                        is_ebreak_ex;
+  logic                        is_mret_ex;
+  logic                        exc_illegal_ex;
+  logic                        valid_id;
+  logic                        valid_ex;
+  logic                        valid_mem;
+  logic                        valid_wb;
+  logic                        commit_valid;
+  logic                        exc_instr_misaligned;
+  logic                        exc_load_misaligned;
+  logic                        exc_store_misaligned;
+  logic                        mem_misaligned;
+  logic                        timer_irq;
+  logic             [XLEN-1:0] csr_rdata;
+  logic                        trap_taken;
+  logic             [XLEN-1:0] trap_vector;
+  logic                        mret_taken;
+  logic             [XLEN-1:0] mepc_out;
+  logic             [XLEN-1:0] bad_addr;
+
   pc #(
       .XLEN(XLEN),
       .RESET_ADDR('h0000_0000)
   ) pc_inst (
       .clk(clk),
-      .core_en(core_en && !stall),
+      .core_en(core_en && (!stall || flush)),
       .rst_n(rst_n),
       .pc_next(pc_next),
       .pc_q(pc)
@@ -144,8 +185,19 @@ module datapath
       .result_src   (result_src),
       .alu_ctrl     (alu_ctrl),
       .branch       (branch),
-      .jump         (jump)
+      .jump         (jump),
+      .csr_access   (csr_access),
+      .is_ecall     (is_ecall),
+      .is_ebreak    (is_ebreak),
+      .is_mret      (is_mret)
   );
+
+  assign exc_illegal = !((instr_id[6:0] == OpcodeOp) || (instr_id[6:0] == OpcodeOpImm) ||
+      (instr_id[6:0] == OpcodeLoad) || (instr_id[6:0] == OpcodeStore) ||
+      (instr_id[6:0] == OpcodeBranch) || (instr_id[6:0] == OpcodeJal) ||
+      (instr_id[6:0] == OpcodeJalr) || (instr_id[6:0] == OpcodeLui) ||
+      (instr_id[6:0] == OpcodeAuipc) || (instr_id[6:0] == OpcodeMiscMem) ||
+      (instr_id[6:0] == OpcodeSystem));
 
   regfile #(
       .XLEN(XLEN)
@@ -183,19 +235,44 @@ module datapath
       alu_a_src_ex     <= alu_a_src;
       pc_target_src_ex <= pc_target_src;
       alu_src_ex       <= alu_src;
-      result_src_ex    <= result_src;
+      result_src_ex    <= (stall || flush) ? 2'd0 : result_src;
       alu_ctrl_ex      <= alu_ctrl;
       rs1_data_ex      <= rs1_data;
       rs2_data_ex      <= rs2_data;
       reg_write_ex     <= (reg_write && !stall && !flush);
       mem_write_ex     <= (mem_write_dec && !stall && !flush);
-      rd_ex            <= instr_id[11:7];
+      rd_ex            <= (stall || flush) ? 5'd0 : instr_id[11:7];
       rs1_ex           <= instr_id[19:15];
       rs2_ex           <= instr_id[24:20];
       branch_ex        <= (branch && !stall && !flush);
       jump_ex          <= (jump && !stall && !flush);
+      instr_ex         <= instr_id;
+      csr_access_ex    <= (csr_access && !stall && !flush);
+      is_ecall_ex      <= (is_ecall && !stall && !flush);
+      is_ebreak_ex     <= (is_ebreak && !stall && !flush);
+      is_mret_ex       <= (is_mret && !stall && !flush);
+      exc_illegal_ex   <= (exc_illegal && !stall && !flush);
     end
   end
+
+  // Commit valid
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      valid_id  <= 1'b0;
+      valid_ex  <= 1'b0;
+      valid_mem <= 1'b0;
+      valid_wb  <= 1'b0;
+    end else begin
+      if (flush) valid_id <= 1'b0;
+      else if (!stall) valid_id <= 1'b1;
+      valid_ex  <= valid_id && !stall && !flush;
+      valid_mem <= valid_ex;
+      valid_wb  <= valid_mem;
+    end
+  end
+
+  assign commit_valid = valid_ex;
+  assign timer_irq    = 1'b0;
 
   hazard_unit #(
       .XLEN(XLEN)
@@ -270,9 +347,55 @@ module datapath
     endcase
   end
 
-  assign pc_src_ex    = (branch_ex & branch_taken_ex) | jump_ex;
-  assign flush        = pc_src_ex;
-  assign pc_target_ex = pc_target_src_ex ? alu_result : (pc_ex + imm_ext_ex);
+  assign pc_src_ex    = valid_ex && ((branch_ex & branch_taken_ex) | jump_ex);
+  assign pc_target_ex = pc_target_src_ex ? {alu_result[XLEN-1:1], 1'b0} : (pc_ex + imm_ext_ex);
+
+  // EX exceptions
+  assign exc_instr_misaligned = commit_valid && (branch_ex || jump_ex) && pc_src_ex &&
+      (pc_target_ex[1:0] != 2'b00);
+
+  // Alignment by width
+  always_comb begin
+    case (funct3_ex)
+      3'b001, 3'b101: mem_misaligned = alu_result[0];  // halfword
+      3'b010:         mem_misaligned = |alu_result[1:0];  // word
+      default:        mem_misaligned = 1'b0;
+    endcase
+  end
+
+  assign exc_load_misaligned  = commit_valid && (result_src_ex == 2'd1) && mem_misaligned;
+  assign exc_store_misaligned = commit_valid && mem_write_ex && mem_misaligned;
+  assign bad_addr = exc_instr_misaligned ? pc_target_ex : alu_result;
+
+  csr #(
+      .XLEN(XLEN)
+  ) csr_inst (
+      .clk                 (clk),
+      .core_en             (core_en && commit_valid),
+      .rst_n               (rst_n),
+      .csr_access          (csr_access_ex && commit_valid),
+      .csr_addr            (instr_ex[31:20]),
+      .funct3              (funct3_ex),
+      .rs1_data            (forwarded_rs1),
+      .zimm                (instr_ex[19:15]),
+      .pc                  (pc_ex),
+      .bad_addr            (bad_addr),
+      .exc_illegal         (exc_illegal_ex && commit_valid),
+      .exc_ecall           (is_ecall_ex && commit_valid),
+      .exc_ebreak          (is_ebreak_ex && commit_valid),
+      .exc_instr_misaligned(exc_instr_misaligned),
+      .exc_load_misaligned (exc_load_misaligned),
+      .exc_store_misaligned(exc_store_misaligned),
+      .is_mret             (is_mret_ex && commit_valid),
+      .timer_irq           (timer_irq),
+      .csr_rdata           (csr_rdata),
+      .trap_taken          (trap_taken),
+      .trap_vector         (trap_vector),
+      .mret_taken          (mret_taken),
+      .mepc_out            (mepc_out)
+  );
+
+  assign flush = pc_src_ex | trap_taken | mret_taken;
 
   // EX/MEM
   always_ff @(posedge clk) begin
@@ -283,9 +406,9 @@ module datapath
       alu_result_mem <= alu_result;
       pc_plus4_mem   <= pc_plus4_ex;
       write_data_mem <= forwarded_rs2;
-      mem_write_mem  <= mem_write_ex;
+      mem_write_mem  <= mem_write_ex && !trap_taken;
       funct3_mem     <= funct3_ex;
-      reg_write_mem  <= reg_write_ex;
+      reg_write_mem  <= reg_write_ex && !trap_taken;
       result_src_mem <= result_src_ex;
       rd_mem         <= rd_ex;
     end
@@ -356,11 +479,65 @@ module datapath
     endcase
   end
 
-  assign pc_next = pc_src_ex ? pc_target_ex : pc_plus4;
+  always_comb begin
+    if (trap_taken) pc_next = trap_vector;
+    else if (mret_taken) pc_next = mepc_out;
+    else if (pc_src_ex) pc_next = pc_target_ex;
+    else pc_next = pc_plus4;
+  end
 
 `ifdef RISCV_FORMAL
-  assign dbg_rs1_data = rs1_data;
-  assign dbg_rd_wdata = result;
+  // RVFI shadow pipeline
+  logic [XLEN-1:0] rvfi_insn_ex, rvfi_insn_mem, rvfi_insn_wb;
+  logic [XLEN-1:0] rvfi_pc_mem, rvfi_pc_wb;
+  logic [XLEN-1:0] rvfi_pcw_mem, rvfi_pcw_wb;
+  logic [XLEN-1:0] rvfi_rs1d_mem, rvfi_rs1d_wb;
+  logic [XLEN-1:0] rvfi_rs2d_mem, rvfi_rs2d_wb;
+  logic [XLEN-1:0] rvfi_memrd_wb;
+  logic [     3:0] rvfi_wstrb_wb;
+  logic [XLEN-1:0] rvfi_wdata_wb;
+  logic            rvfi_trap_mem, rvfi_trap_wb;
+
+  always_ff @(posedge clk) begin
+    rvfi_insn_ex  <= instr_id;
+    rvfi_insn_mem <= rvfi_insn_ex;
+    rvfi_insn_wb  <= rvfi_insn_mem;
+
+    rvfi_pc_mem   <= pc_ex;
+    rvfi_pc_wb    <= rvfi_pc_mem;
+
+    if (trap_taken) rvfi_pcw_mem <= trap_vector;
+    else if (mret_taken) rvfi_pcw_mem <= mepc_out;
+    else if (pc_src_ex) rvfi_pcw_mem <= pc_target_ex;
+    else rvfi_pcw_mem <= pc_ex + 4;
+    rvfi_pcw_wb <= rvfi_pcw_mem;
+
+    rvfi_rs1d_mem <= forwarded_rs1;
+    rvfi_rs1d_wb  <= rvfi_rs1d_mem;
+    rvfi_rs2d_mem <= forwarded_rs2;
+    rvfi_rs2d_wb  <= rvfi_rs2d_mem;
+
+    rvfi_memrd_wb <= read_data;
+    rvfi_wstrb_wb <= store_wstrb;
+    rvfi_wdata_wb <= store_data;
+
+    rvfi_trap_mem <= trap_taken;
+    rvfi_trap_wb  <= rvfi_trap_mem;
+  end
+
+  assign dbg_valid     = valid_wb;
+  assign dbg_insn      = rvfi_insn_wb;
+  assign dbg_pc_rdata  = rvfi_pc_wb;
+  assign dbg_pc_wdata  = rvfi_pcw_wb;
+  assign dbg_rs1_rdata = rvfi_rs1d_wb;
+  assign dbg_rs2_rdata = rvfi_rs2d_wb;
+  assign dbg_rd_wdata  = result;
+  assign dbg_reg_write = reg_write_wb;
+  assign dbg_mem_addr  = alu_result_wb;
+  assign dbg_mem_wmask = rvfi_wstrb_wb;
+  assign dbg_mem_wdata = rvfi_wdata_wb;
+  assign dbg_mem_rdata = rvfi_memrd_wb;
+  assign dbg_trap      = rvfi_trap_wb;
 `endif
 
 endmodule
