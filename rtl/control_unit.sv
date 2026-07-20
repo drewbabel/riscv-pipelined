@@ -15,14 +15,14 @@ module control_unit
     output logic             [ 1:0] result_src,
     output alu_pkg::alu_op_e        alu_ctrl,
     output logic                    branch,
-    output logic                    jump
+    output logic                    jump,
+    output logic                    csr_access,
+    output logic                    is_ecall,
+    output logic                    is_ebreak,
+    output logic                    is_mret
 );
 
   logic [1:0] alu_op;
-  logic csr_access;
-  logic is_ecall;
-  logic is_ebreak;
-  logic is_mret;
 
   control_decoder u_decoder (
       .op           (op),
