@@ -18,8 +18,26 @@ module regfile #(
 
   logic [XLEN-1:0] regfile_mem[Depth];
 
-  assign rdata1 = (raddr1 == 0) ? '0 : regfile_mem[raddr1];
-  assign rdata2 = (raddr2 == 0) ? '0 : regfile_mem[raddr2];
+  // Write-first bypass
+  always_comb begin
+    // Read port 1
+    if (we && (waddr == raddr1) && (waddr != 0)) begin
+      rdata1 = wdata;
+    end else if (raddr1 == 0) begin
+      rdata1 = '0;
+    end else begin
+      rdata1 = regfile_mem[raddr1];
+    end
+
+    // Read port 2
+    if (we && (waddr == raddr2) && (waddr != 0)) begin
+      rdata2 = wdata;
+    end else if (raddr2 == 0) begin
+      rdata2 = '0;
+    end else begin
+      rdata2 = regfile_mem[raddr2];
+    end
+  end
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
