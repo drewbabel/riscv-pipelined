@@ -174,11 +174,11 @@ module datapath
       instr_id    <= '0;
       pc_id       <= '0;
       pc_plus4_id <= '0;
-    end else if (flush) begin
+    end else if (core_en && flush) begin
       instr_id    <= 32'h0000_0013;  // NOP
       pc_id       <= '0;
       pc_plus4_id <= '0;
-    end else if (!stall) begin
+    end else if (core_en && !stall) begin
       instr_id    <= instr;
       pc_id       <= pc;
       pc_plus4_id <= pc_plus4;
@@ -241,7 +241,7 @@ module datapath
     if (!rst_n) begin
       reg_write_ex <= 1'b0;
       mem_write_ex <= 1'b0;
-    end else begin
+    end else if (core_en) begin
       pc_ex            <= pc_id;
       pc_plus4_ex      <= pc_plus4_id;
       funct3_ex        <= instr_id[14:12];
@@ -276,7 +276,7 @@ module datapath
       valid_ex  <= 1'b0;
       valid_mem <= 1'b0;
       valid_wb  <= 1'b0;
-    end else begin
+    end else if (core_en) begin
       if (flush) valid_id <= 1'b0;
       else if (!stall) valid_id <= 1'b1;
       valid_ex  <= valid_id && !stall && !flush;
@@ -435,7 +435,7 @@ module datapath
     if (!rst_n) begin
       reg_write_mem <= 1'b0;
       mem_write_mem <= 1'b0;
-    end else begin
+    end else if (core_en) begin
       alu_result_mem <= result_ex;
       pc_plus4_mem   <= pc_plus4_ex;
       write_data_mem <= forwarded_rs2;
@@ -492,7 +492,7 @@ module datapath
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       reg_write_wb <= 1'b0;
-    end else begin
+    end else if (core_en) begin
       result_src_wb <= result_src_mem;
       alu_result_wb <= alu_result_mem;
       pc_plus4_wb   <= pc_plus4_mem;
