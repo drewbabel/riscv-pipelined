@@ -7,3 +7,13 @@ formal/*/
 __pycache__/
 *.hex
 !tests/*.hex
+.DS_Store
+.vscode/
+obj_dir/
+
+# FPGA build artifacts (yosys / nextpnr / prjxray / openFPGALoader)
+*.bit
+*.frames
+*.fasm
+*.json
+*.log
