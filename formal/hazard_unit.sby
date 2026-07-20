@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 10
+
+[engines]
+smtbmc
+
+[script]
+read -formal hazard_unit_formal.v
+prep -top hazard_unit_formal
+
+[files]
+build/hazard_unit_formal.v
