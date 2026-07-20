@@ -177,7 +177,7 @@ module csr
           MieAddr:      mie <= csr_wdata;
           MtvecAddr:    mtvec <= csr_wdata;
           MscratchAddr: mscratch <= csr_wdata;
-          MepcAddr:     mepc <= csr_wdata;
+          MepcAddr:     mepc <= {csr_wdata[XLEN-1:2], 2'b00};  // mepc word aligned
           McauseAddr:   mcause <= csr_wdata;
           MtvalAddr:    mtval <= csr_wdata;
           MipAddr:      mip <= csr_wdata & ~(XLEN'(1) << Mtip);  // Mtip read-only
