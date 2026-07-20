@@ -1,6 +1,7 @@
 module board_top #(
-    parameter int XLEN  = 32,
-    parameter int DEPTH = 16384
+    parameter int XLEN   = 32,
+    parameter int DEPTH  = 16384,
+    parameter int ClkDiv = 32
 ) (
     input  logic        clk,
     input  logic        rst,
@@ -52,10 +53,11 @@ module board_top #(
   logic [     3:0] rt_strb_q;
 
   // Core-enable divider
-  logic [     4:0] div = '0;
-  logic            core_en;
-  always_ff @(posedge clk) div <= div + 1'b1;
-  assign core_en = (div == 5'd0);
+  localparam int CoreClkHz = 100_000_000 / ClkDiv;
+  logic [$clog2(ClkDiv)-1:0] div = '0;
+  logic                      core_en;
+  always_ff @(posedge clk) div <= (div == ClkDiv - 1) ? '0 : div + 1'b1;
+  assign core_en = (div == 0);
 
   // Power-on reset
   logic [3:0] por = '0;
@@ -109,7 +111,7 @@ module board_top #(
   end
 
   uart_rx #(
-      .CLK_FREQ_HZ(3_125_000),
+      .CLK_FREQ_HZ(CoreClkHz),
       .BAUD_RATE  (28_800)
   ) uart_rx_inst (
       .clk      (clk),
@@ -122,7 +124,7 @@ module board_top #(
   );
 
   uart_tx #(
-      .CLK_FREQ_HZ(3_125_000),
+      .CLK_FREQ_HZ(CoreClkHz),
       .BAUD_RATE  (28_800)
   ) uart_tx_inst (
       .clk      (clk),
