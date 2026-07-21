@@ -99,7 +99,7 @@ A store to the transmit register sends one byte, and polling the ready register 
 
 CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter and printing its report over the serial transmitter. At a divide-by-three clock enable the core runs at 33.3 MHz on the board and scores 32.09 iterations per second with validated CRCs, at a CPI of 1.58.
 
-The single-cycle baseline core scores 27.85 iterations per second at its own fastest validated clock of 20 MHz. The pipeline sustains a 1.67x faster validated clock and returns part of that gain through branch flushes and load-use stalls, a net 1.15x speedup with each core measured at its fastest working divider on the same board.
+The [single-cycle baseline core](https://github.com/drewbabel/riscv-single-cycle) scores 27.85 iterations per second at its own fastest validated clock of 20 MHz. The pipeline sustains a 1.67x faster validated clock and returns part of that gain through branch flushes and load-use stalls, a net 1.15x speedup with each core measured at its fastest working divider on the same board.
 
 ## Verification
 
