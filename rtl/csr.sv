@@ -5,6 +5,7 @@ module csr
 ) (
     input logic clk,
     input logic core_en,
+    input logic cycle_en,
     input logic rst_n,
 
     // Zicsr access
@@ -118,6 +119,23 @@ module csr
     endcase
   end
 
+  // Counts every cycle
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      mcycle  <= '0;
+      mcycleh <= '0;
+    end else begin
+      if (cycle_en) begin
+        mcycle  <= mcycle + 1;
+        mcycleh <= (mcycle == '1) ? mcycleh + 1 : mcycleh;
+      end
+      if (core_en && csr_write_en) begin
+        if (csr_addr == McycleAddr) mcycle <= csr_wdata;
+        if (csr_addr == McyclehAddr) mcycleh <= csr_wdata;
+      end
+    end
+  end
+
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       mstatus  <= '0;
@@ -128,13 +146,9 @@ module csr
       mie      <= '0;
       mip      <= '0;
       mscratch <= '0;
-      mcycle   <= '0;
       minstret <= '0;
-      mcycleh   <= '0;
       minstreth <= '0;
     end else if (core_en) begin
-      mcycle  <= mcycle + 1;
-      mcycleh <= (mcycle == '1) ? mcycleh + 1 : mcycleh;
       if (!trap_taken) begin  // retired only
         minstret  <= minstret + 1;
         minstreth <= (minstret == '1) ? minstreth + 1 : minstreth;
@@ -181,9 +195,7 @@ module csr
           McauseAddr:   mcause <= csr_wdata;
           MtvalAddr:    mtval <= csr_wdata;
           MipAddr:      mip <= csr_wdata & ~(XLEN'(1) << Mtip);  // Mtip read-only
-          McycleAddr:   mcycle <= csr_wdata;
           MinstretAddr: minstret <= csr_wdata;
-          McyclehAddr:   mcycleh <= csr_wdata;
           MinstrethAddr: minstreth <= csr_wdata;
           default:      ;
         endcase

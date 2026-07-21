@@ -17,3 +17,14 @@ obj_dir/
 *.fasm
 *.json
 *.log
+
+# CoreMark (EEMBC source cloned at build, images rebuilt)
+sw/coremark-src/
+sw/coremark/*.elf
+sw/coremark/*.hex
+
+# FreeRTOS (kernel cloned/vendored, images rebuilt)
+sw/FreeRTOS-Kernel/
+sw/freertos/*.elf
+sw/freertos/*.hex
+sw/freertos/*.bin

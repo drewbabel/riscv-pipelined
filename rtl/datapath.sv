@@ -385,6 +385,7 @@ module datapath
   ) csr_inst (
       .clk                 (clk),
       .core_en             (core_en && commit_valid),
+      .cycle_en            (core_en),
       .rst_n               (rst_n),
       .csr_access          (csr_access_ex && commit_valid),
       .csr_addr            (instr_ex[31:20]),

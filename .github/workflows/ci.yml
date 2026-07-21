@@ -17,6 +17,11 @@ jobs:
           shopt -s nullglob
           for tb in tb/*_tb.sv; do
             mod=$(basename "$tb" _tb.sv)
+            case "$mod" in
+              coremark_boot) echo "== skip $mod (built by the coremark job) =="; continue;;
+              freertos_boot) echo "== skip $mod (built by the freertos job) =="; continue;;
+              gate_check) echo "== skip $mod (run by the gate-check job) =="; continue;;
+            esac
             echo "== $mod =="
             make MOD="$mod"
           done
@@ -90,9 +95,73 @@ jobs:
           RISCV_FORMAL_DIR: ${{ github.workspace }}/riscv-formal
         run: bash formal/rvfi/run.sh ${{ matrix.group }}
 
+  coremark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install RISC-V toolchain
+        run: |
+          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+      - name: Alias toolchain to riscv64-elf-*
+        run: |
+          for t in gcc objcopy; do
+            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
+          done
+      - name: Build CoreMark image
+        run: make -C sw/coremark all
+
+  freertos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog and RISC-V toolchain
+        run: |
+          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
+          sudo apt-get update
+          sudo apt-get install -y iverilog gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+      - name: Alias toolchain to riscv64-elf-*
+        run: |
+          for t in gcc objcopy; do
+            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
+          done
+      - name: Clone FreeRTOS-Kernel
+        run: |
+          git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git sw/FreeRTOS-Kernel
+          git -C sw/FreeRTOS-Kernel checkout 9db704cd3bbe4963f9bd3de1f1161ea2cf90768b
+      - name: Build FreeRTOS demo image
+        run: make -C sw/freertos all
+      - name: Run FreeRTOS queue demo testbench
+        run: make MOD=freertos_boot
+
+  gate-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YosysHQ/setup-oss-cad-suite@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install sv2v and RISC-V toolchain
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          unzip -j sv2v.zip -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
+          sudo apt-get update
+          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+      - name: Alias toolchain to riscv64-elf-*
+        run: |
+          for t in gcc objcopy; do
+            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
+          done
+      - name: Prove the pc_plus4 keep holds
+        run: bash gate_check.sh
+
   ci-gate:
     if: always()
-    needs: [testbenches, formal, core-formal-list, core-formal]
+    needs: [testbenches, formal, core-formal-list, core-formal, coremark, freertos, gate-check]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all CI jobs succeeded
