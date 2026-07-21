@@ -1,6 +1,7 @@
 module control_decoder
   import csr_pkg::*;
   import opcode_pkg::*;
+  import muldiv_pkg::*;
 (
     input  logic [ 6:0] op,
     input  logic [ 2:0] funct3,
@@ -18,7 +19,9 @@ module control_decoder
     output logic        csr_access,
     output logic        is_ecall,
     output logic        is_ebreak,
-    output logic        is_mret
+    output logic        is_mret,
+    output logic        is_muldiv,
+    output muldiv_pkg::muldiv_op_e muldiv_op
 );
 
   // imm_src 0=I 1=S 2=B 3=U 4=J
@@ -57,12 +60,18 @@ module control_decoder
     is_ecall      = 1'b0;
     is_ebreak     = 1'b0;
     is_mret       = 1'b0;
+    is_muldiv     = 1'b0;
+    muldiv_op     = MD_MUL;
 
     case (op)
-      OpcodeOp: begin  // add, sub, and, or, xor, sll, srl, sra, slt, sltu
+      OpcodeOp: begin  // R-type and RV32M
         reg_write = 1'b1;
         alu_src   = 1'b0;
         alu_op    = AluOpFunct;
+        if (funct12[11:5] == Funct7MulDiv) begin  // RV32M ops
+          is_muldiv = 1'b1;
+          muldiv_op = muldiv_op_e'(funct3);
+        end
       end
 
       OpcodeOpImm: begin  // addi, andi, ori, xori, slli, srli, srai, slti, sltiu

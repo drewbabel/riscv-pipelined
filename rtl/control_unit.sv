@@ -1,6 +1,7 @@
 module control_unit
   import alu_pkg::*;
   import csr_pkg::*;
+  import muldiv_pkg::*;
 (
     input  logic             [ 6:0] op,
     input  logic             [ 2:0] funct3,
@@ -19,7 +20,9 @@ module control_unit
     output logic                    csr_access,
     output logic                    is_ecall,
     output logic                    is_ebreak,
-    output logic                    is_mret
+    output logic                    is_mret,
+    output logic                    is_muldiv,
+    output muldiv_pkg::muldiv_op_e  muldiv_op
 );
 
   logic [1:0] alu_op;
@@ -41,7 +44,9 @@ module control_unit
       .csr_access   (csr_access),
       .is_ecall     (is_ecall),
       .is_ebreak    (is_ebreak),
-      .is_mret      (is_mret)
+      .is_mret      (is_mret),
+      .is_muldiv    (is_muldiv),
+      .muldiv_op    (muldiv_op)
   );
 
   alu_decoder u_alu_decoder (

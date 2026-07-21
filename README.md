@@ -2,11 +2,13 @@
 
 [![CI](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml/badge.svg)](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml)
 
-A five-stage pipelined RV32I processor with hardware hazard resolution and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
+A five-stage pipelined RV32IM processor with hardware hazard resolution and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
 
-The core executes the RV32I base integer instruction set across the classic instruction fetch (IF), instruction decode (ID), execute (EX), memory (MEM), and write-back (WB) stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a loaded word, a CSR value, or the return address writes back in WB.
+The core executes the RV32I base integer instruction set together with the M extension for multiply and divide, across the classic instruction fetch (IF), instruction decode (ID), execute (EX), memory (MEM), and write-back (WB) stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a multiply or divide result, a loaded word, a CSR value, or the return address writes back in WB.
 
 The `hazard_unit` preserves correct execution across the overlapped instructions. An instruction whose operand is still in flight receives the value forwarded from the MEM or WB stage instead of the stale register file copy. A load followed immediately by a dependent instruction cannot forward in time, so the unit inserts a one-cycle stall. Branches and jumps resolve in EX, and a taken branch flushes the two younger instructions already in the pipeline.
+
+The `muldiv` unit implements the M extension. Multiply maps to a DSP block, and divide runs an iterative shift-subtract state machine that produces one quotient bit per clock. Both stall the pipeline through a shared busy handshake, and the operation holds in EX until the result is ready, since a multi-cycle result cannot retire in a single step.
 
 The `csr` block holds the machine-mode registers and the trap unit. On an exception or an enabled timer interrupt the trap unit records the faulting program counter in `mepc` and the reason in `mcause`, redirects the fetch to the `mtvec` handler, and cancels the younger instructions behind the trapping one. An `mret` restores the interrupt-enable stack and returns to `mepc`. The `clint` block raises the timer interrupt once its memory-mapped `mtime` reaches `mtimecmp`.
 
@@ -45,6 +47,7 @@ The core, testbenches, and formal proofs were written from scratch. The board sy
 | Format | Instructions |
 |--------|--------------|
 | Register (`OP`) | `add` `sub` `sll` `slt` `sltu` `xor` `srl` `sra` `or` `and` |
+| Multiply-divide (`OP`) | `mul` `mulh` `mulhsu` `mulhu` `div` `divu` `rem` `remu` |
 | Immediate (`OP-IMM`) | `addi` `slti` `sltiu` `xori` `ori` `andi` `slli` `srli` `srai` |
 | Load (`LOAD`) | `lb` `lbu` `lh` `lhu` `lw` |
 | Store (`STORE`) | `sb` `sh` `sw` |
@@ -63,6 +66,7 @@ The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
 | Operand still in MEM or WB | Forward into the EX operand muxes |
 | Load followed by a dependent instruction | One-cycle stall, then forward |
 | Taken branch or jump, resolved in EX | Flush the two younger instructions |
+| Multiply or divide occupying EX | Stall the pipeline until the multi-cycle result retires |
 
 ## Machine mode
 
@@ -135,7 +139,7 @@ make -C sw/coremark all                     # build the CoreMark image
 ./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
 
-The board flow runs sv2v, Yosys, and nextpnr-xilinx. `build_board.sh` preserves the `pc_plus4` nets through synthesis with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6058](https://github.com/YosysHQ/yosys/issues/6058)). The RTL is correct in simulation and formal, and `gate_check.sh` re-verifies the workaround after any toolchain change.
+The board flow runs sv2v, Yosys, and nextpnr-xilinx. `build_board.sh` preserves the `pc_plus4` nets through synthesis with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). The RTL is correct in simulation and formal, and `gate_check.sh` re-verifies the workaround after any toolchain change.
 
 ## Synthesis
 
@@ -150,9 +154,10 @@ Synthesized for the Digilent Basys 3 (Xilinx Artix-7). sv2v first converts the S
 | `control_unit` | 33 | 0 | 0 |
 | `clint` | 219 | 128 | 22 |
 | `alu` | 492 | 0 | 22 |
+| `muldiv` | 567 | 240 | 81 |
 | `csr` | 736 | 383 | 32 |
 | `regfile` | 1050 | 992 | 0 |
-| `riscv_pipelined` | 2710 | 1875 | 70 |
+| `riscv_pipelined` | 3168 | 2119 | 151 |
 
 The `board_top` system adds the instruction and data memories as block RAMs.
 

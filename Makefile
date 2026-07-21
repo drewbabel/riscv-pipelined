@@ -1,15 +1,15 @@
-#   make MOD=pc                  compile rtl/ + that tb, run; a test FAIL exits nonzero
+#   make MOD=pc                  compile rtl/ + that tb, run (FAIL exits nonzero)
 #   make wave MOD=alu            same, then open the waveform in surfer (opens even on FAIL)
-#   make view MOD=alu            open testbench waveform in surfer (no rerun); error if .vcd missing
+#   make view MOD=alu            open testbench waveform in surfer (no rerun) (error if .vcd missing)
 #   make view-formal MOD=alu     open formal waveform; error if .vcd missing
-#   make formal MOD=alu          run every SymbiYosys task in formal/$(MOD).sby; a FAIL exits nonzero
+#   make formal MOD=alu          run every SymbiYosys task in formal/$(MOD).sby (FAIL exits nonzero)
 #   make hex PROG=program        assemble tests/$(PROG).s -> tests/$(PROG).hex for $readmemh
 #   make dis PROG=program        disassemble the built elf (sanity-check the machine code)
 #   make cosim PROG=cosim1       lockstep-compare tests/cosim1.s against Spike (needs spike installed)
 #   make clean                   delete build artifacts (build/, *.vcd)
 
 # packages must compile before any module that imports them
-PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv
+PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv
 RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
 TB  := tb/$(MOD)_tb.sv
 SIM := build/sim
@@ -21,7 +21,7 @@ FORMAL := formal/$(MOD).sby
 RVGCC   := riscv64-elf-gcc
 RVCOPY  := riscv64-elf-objcopy
 RVDUMP  := riscv64-elf-objdump
-RVFLAGS := -march=rv32i_zicsr -mabi=ilp32 -nostdlib -nostartfiles -T tests/link.ld
+RVFLAGS := -march=rv32im_zicsr -mabi=ilp32 -nostdlib -nostartfiles -T tests/link.ld
 
 run:
 	@test -n "$(MOD)" || { echo "usage: make MOD=<module>  (e.g. MOD=alu)"; exit 1; }
