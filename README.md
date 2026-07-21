@@ -4,7 +4,7 @@
 
 A five-stage pipelined RV32I processor with hardware hazard resolution and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
 
-The core executes the RV32I base integer instruction set across the classic fetch, decode, execute, memory, and write-back stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a loaded word, a CSR value, or the return address writes back in WB.
+The core executes the RV32I base integer instruction set across the classic instruction fetch (IF), instruction decode (ID), execute (EX), memory (MEM), and write-back (WB) stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a loaded word, a CSR value, or the return address writes back in WB.
 
 The `hazard_unit` preserves correct execution across the overlapped instructions. An instruction whose operand is still in flight receives the value forwarded from the MEM or WB stage instead of the stale register file copy. A load followed immediately by a dependent instruction cannot forward in time, so the unit inserts a one-cycle stall. Branches and jumps resolve in EX, and a taken branch flushes the two younger instructions already in the pipeline.
 
