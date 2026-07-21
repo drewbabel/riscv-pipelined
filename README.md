@@ -135,7 +135,7 @@ make -C sw/coremark all                     # build the CoreMark image
 ./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
 
-The board flow runs sv2v, Yosys, and nextpnr-xilinx. `build_board.sh` preserves the `pc_plus4` nets through synthesis with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6058](https://github.com/YosysHQ/yosys/issues/6058)). The RTL is correct in simulation and formal, and `gate_check.sh` re-verifies the workaround after any toolchain change.
+The board flow runs sv2v, Yosys, and nextpnr-xilinx. `build_board.sh` preserves the `pc_plus4` nets through synthesis with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). The RTL is correct in simulation and formal, and `gate_check.sh` re-verifies the workaround after any toolchain change.
 
 ## Synthesis
 
