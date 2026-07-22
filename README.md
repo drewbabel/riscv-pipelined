@@ -107,9 +107,9 @@ The [single-cycle baseline core](https://github.com/drewbabel/riscv-single-cycle
 
 ## Verification
 
-The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32IM specification under SymbiYosys, including the multiply instructions, the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
 
-A full 32-bit iterative divider is beyond bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
+A 32-bit multiplier and a full iterative divider are both beyond in-core bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
 
 The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
 
