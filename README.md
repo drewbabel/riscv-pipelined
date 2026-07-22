@@ -16,6 +16,57 @@ The core, testbenches, and formal proofs were written from scratch. The board sy
 
 ![Pipelined core block diagram](docs/pipeline_block.svg)
 
+## CoreMark
+
+CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter and printing its report over the serial transmitter. Every result validates against the reference CRCs on the Basys 3, with each core run at the highest clock divider that closes timing and executes correctly on the board.
+
+| Configuration | Clock | CoreMark/sec | CoreMark/MHz |
+|---------------|-------|--------------|--------------|
+| Pipelined RV32IM, hardware multiply and divide | 33.3 MHz | 83.36 | 2.50 |
+| Pipelined RV32I, software multiply and divide | 33.3 MHz | 32.09 | 0.96 |
+| [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
+
+The M extension raises the pipeline by 2.6x, from 0.96 to 2.50 CoreMark per MHz, comparing hardware multiply and divide against a software build of the same benchmark on one bitstream. The single-cycle baseline resolves each instruction in a single clock and incurs no hazard penalty, so it retires more work per cycle than the integer pipeline, but its longer critical path limits it to 20 MHz. The pipeline more than offsets that per-cycle deficit with a 1.67x higher clock, and the hardware multiplier compounds the advantage to roughly 3x the single-cycle baseline.
+
+## Verification
+
+The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+
+A 32-bit multiplier and a full iterative divider are both beyond in-core bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
+
+The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
+
+A Spike lockstep co-simulation cross-checks the dynamic behavior the bounded proofs cannot reach. `tests/cosim.py` runs the core and Spike in step over a directed RV32IM program and a randomized regression, and diffs every retired instruction against the golden ISA model. Run it with `make cosim PROG=cosim_m`.
+
+Every module has a self-checking testbench, and directed pipeline programs drive the forwarding, load-use, branch-flush, trap, and timer paths through the assembled core. `tb/freertos_boot_tb.sv` boots the FreeRTOS kernel on the core in simulation, and `tb/coremark_boot_tb.sv` streams the CoreMark image through the bootloader and validates its checksums. The testbenches, the formal proofs, the Spike co-simulation, and both benchmark builds run on every push in CI, and the full system runs on a Basys 3, where CoreMark validates its result checksums on real hardware.
+
+## Results
+
+A load followed by a dependent instruction stalls the pipeline for one cycle, and the loaded word is then forwarded into EX.
+
+![Load-use stall waveform](docs/loaduse_waveform.svg)
+
+A taken branch resolves in EX and flushes the two wrong-path instructions behind it, so their register writes never commit.
+
+![Taken-branch flush waveform](docs/flush_waveform.svg)
+
+## Instructions
+
+| Format | Instructions |
+|--------|--------------|
+| Register (`OP`) | `add` `sub` `sll` `slt` `sltu` `xor` `srl` `sra` `or` `and` |
+| Multiply-divide (`OP`) | `mul` `mulh` `mulhsu` `mulhu` `div` `divu` `rem` `remu` |
+| Immediate (`OP-IMM`) | `addi` `slti` `sltiu` `xori` `ori` `andi` `slli` `srli` `srai` |
+| Load (`LOAD`) | `lb` `lbu` `lh` `lhu` `lw` |
+| Store (`STORE`) | `sb` `sh` `sw` |
+| Branch (`BRANCH`) | `beq` `bne` `blt` `bge` `bltu` `bgeu` |
+| Jump | `jal` `jalr` |
+| Upper immediate | `lui` `auipc` |
+| System | `ecall` `ebreak` `mret` |
+| Zicsr | `csrrw` `csrrs` `csrrc` `csrrwi` `csrrsi` `csrrci` |
+
+The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
+
 ## Parameters
 
 | Parameter | Default | Description |
@@ -41,23 +92,6 @@ The core, testbenches, and formal proofs were written from scratch. The board sy
 | `store_wstrb` | out | 4 | Per-byte write strobe for the store |
 | `store_data` | out | `XLEN` | Store data aligned to the addressed byte lanes |
 | `mem_addr` | out | `XLEN` | Data memory address |
-
-## Instructions
-
-| Format | Instructions |
-|--------|--------------|
-| Register (`OP`) | `add` `sub` `sll` `slt` `sltu` `xor` `srl` `sra` `or` `and` |
-| Multiply-divide (`OP`) | `mul` `mulh` `mulhsu` `mulhu` `div` `divu` `rem` `remu` |
-| Immediate (`OP-IMM`) | `addi` `slti` `sltiu` `xori` `ori` `andi` `slli` `srli` `srai` |
-| Load (`LOAD`) | `lb` `lbu` `lh` `lhu` `lw` |
-| Store (`STORE`) | `sb` `sh` `sw` |
-| Branch (`BRANCH`) | `beq` `bne` `blt` `bge` `bltu` `bgeu` |
-| Jump | `jal` `jalr` |
-| Upper immediate | `lui` `auipc` |
-| System | `ecall` `ebreak` `mret` |
-| Zicsr | `csrrw` `csrrs` `csrrc` `csrrwi` `csrrsi` `csrrci` |
-
-The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
 
 ## Hazards
 
@@ -98,34 +132,6 @@ The core traps illegal instructions, `ecall`, `ebreak`, and misaligned instructi
 | UART transmit ready | `0x0400_0004` | read |
 
 A store to the transmit register sends one byte, and polling the ready register before each store lets a program print over the serial line.
-
-## CoreMark
-
-CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter and printing its report over the serial transmitter. At a divide-by-three clock enable the core runs at 33.3 MHz on the board and scores 32.09 iterations per second with validated CRCs, at a CPI of 1.58.
-
-The [single-cycle baseline core](https://github.com/drewbabel/riscv-single-cycle) scores 27.85 iterations per second at its own fastest validated clock of 20 MHz. The pipeline sustains a 1.67x faster validated clock and returns part of that gain through branch flushes and load-use stalls, a net 1.15x speedup with each core measured at its fastest working divider on the same board.
-
-## Verification
-
-The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
-
-A 32-bit multiplier and a full iterative divider are both beyond in-core bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
-
-The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
-
-A Spike lockstep co-simulation cross-checks the dynamic behavior the bounded proofs cannot reach. `tests/cosim.py` runs the core and Spike in step over a directed RV32IM program and a randomized regression, and diffs every retired instruction against the golden ISA model. Run it with `make cosim PROG=cosim_m`.
-
-Every module has a self-checking testbench, and directed pipeline programs drive the forwarding, load-use, branch-flush, trap, and timer paths through the assembled core. `tb/freertos_boot_tb.sv` boots the FreeRTOS kernel on the core in simulation, and `tb/coremark_boot_tb.sv` streams the CoreMark image through the bootloader and validates its checksums. The testbenches, the formal proofs, the Spike co-simulation, and both benchmark builds run on every push in CI, and the full system runs on a Basys 3, where CoreMark validates its result checksums on real hardware.
-
-## Results
-
-A load followed by a dependent instruction stalls the pipeline for one cycle, and the loaded word is then forwarded into EX.
-
-![Load-use stall waveform](docs/loaduse_waveform.svg)
-
-A taken branch resolves in EX and flushes the two wrong-path instructions behind it, so their register writes never commit.
-
-![Taken-branch flush waveform](docs/flush_waveform.svg)
 
 ## Building and running
 
