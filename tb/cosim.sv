@@ -68,6 +68,7 @@ module cosim ();
   initial begin
     logic [Xlen-1:0] last_pc;
     logic            have_last;
+    logic            stop;
 
     if (!$value$plusargs("hex=%s", hexfile)) $fatal(1, "cosim needs +hex");
     if (!$value$plusargs("n=%d", max_commits)) max_commits = 4000;
@@ -77,14 +78,17 @@ module cosim ();
 
     // Stop when park sentinel repeats
     have_last = 0;
-    for (int i = 0; i < max_commits; i++) begin
+    stop      = 0;
+    for (int i = 0; i < max_commits && !stop; i++) begin
       @(posedge clk);
       #1;
       if (r_valid && !r_hold) begin
-        if (have_last && r_pc === last_pc) break;
-        emit_commit();
-        last_pc   = r_pc;
-        have_last = 1;
+        if (have_last && r_pc === last_pc) stop = 1;
+        else begin
+          emit_commit();
+          last_pc   = r_pc;
+          have_last = 1;
+        end
       end
     end
 
