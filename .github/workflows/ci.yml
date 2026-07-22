@@ -53,6 +53,8 @@ jobs:
         run: make formal MOD=hazard_unit
       - name: irq formal
         run: make formal MOD=irq
+      - name: muldiv formal
+        run: make formal MOD=muldiv
 
   core-formal-list:
     runs-on: ubuntu-latest
@@ -145,6 +147,43 @@ jobs:
       - name: Run FreeRTOS queue demo testbench
         run: make MOD=freertos_boot
 
+  cosim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Icarus Verilog and RISC-V toolchain
+        run: |
+          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
+          sudo apt-get update
+          sudo apt-get install -y iverilog gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf device-tree-compiler libfdt-dev
+      - name: Alias toolchain to riscv64-elf-*
+        run: |
+          for t in gcc objcopy; do
+            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
+          done
+      - name: Cache Spike
+        id: spike-cache
+        uses: actions/cache@v4
+        with:
+          path: /opt/spike
+          key: spike-riscv-isa-sim-v1
+      - name: Build Spike
+        if: steps.spike-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/riscv-software-src/riscv-isa-sim.git
+          cd riscv-isa-sim && mkdir build && cd build
+          ../configure --prefix=/opt/spike
+          make -j"$(nproc)"
+          make install
+      - name: Add Spike to environment
+        run: |
+          echo "/opt/spike/bin" >> "$GITHUB_PATH"
+          echo "LD_LIBRARY_PATH=/opt/spike/lib" >> "$GITHUB_ENV"
+      - name: Directed rv32im co-sim
+        run: python3 tests/cosim.py cosim_m
+      - name: Randomized co-sim regression (500 programs)
+        run: python3 tests/cosim.py --rand 500
+
   gate-check:
     runs-on: ubuntu-latest
     steps:
@@ -171,7 +210,7 @@ jobs:
 
   ci-gate:
     if: always()
-    needs: [testbench-list, testbenches, formal, core-formal-list, core-formal, coremark, freertos, gate-check]
+    needs: [testbench-list, testbenches, formal, core-formal-list, core-formal, coremark, freertos, cosim, gate-check]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all CI jobs succeeded
