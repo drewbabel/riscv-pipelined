@@ -30,7 +30,7 @@ module muldiv_formal
       .done   (done)
   );
 
-  // reset cycle 0, one-shot start cycle 1
+  // Reset cycle 0, one-shot start cycle 1
   logic [7:0] t = 8'd0;
   initial assume (t == 8'd0);
   always @(posedge clk) t <= t + 8'd1;
@@ -38,7 +38,7 @@ module muldiv_formal
   assign core_en = 1'b1;
   assign start   = (t == 8'd1);
 
-  // capture the accepted operands
+  // Capture the accepted operands
   muldiv_pkg::muldiv_op_e            ref_op;
   logic                   [XLEN-1:0] ref_a;
   logic                   [XLEN-1:0] ref_b;
@@ -49,7 +49,7 @@ module muldiv_formal
       ref_b  <= b;
     end
 
-  // golden high and low products from the spec
+  // Golden high and low products from the spec
   logic signed [  XLEN-1:0] sa;
   logic signed [  XLEN-1:0] sb;
   logic        [2*XLEN-1:0] prod_ss;
@@ -87,7 +87,7 @@ module muldiv_formal
     if (!rst_n) f_started <= 1'b0;
     else if (start) f_started <= 1'b1;
 
-  // general divide leans on Spike, this proves multiply handshake and special cases
+  // General divide leans on Spike, this proves multiply handshake and special cases
   always @(posedge clk)
     if (rst_n) begin
       assert (!(busy && done));
