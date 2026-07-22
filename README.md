@@ -107,11 +107,15 @@ The [single-cycle baseline core](https://github.com/drewbabel/riscv-single-cycle
 
 ## Verification
 
-The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RISC-V specification under SymbiYosys, including the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+
+A 32-bit multiplier and a full iterative divider are both beyond in-core bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
 
 The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
 
-Every module has a self-checking testbench, and directed pipeline programs drive the forwarding, load-use, branch-flush, trap, and timer paths through the assembled core. `tb/freertos_boot_tb.sv` boots the FreeRTOS kernel on the core in simulation, and `tb/coremark_boot_tb.sv` streams the CoreMark image through the bootloader and validates its checksums. The testbenches, the formal proofs, and both benchmark builds run on every push in CI, and the full system runs on a Basys 3, where CoreMark validates its result checksums on real hardware.
+A Spike lockstep co-simulation cross-checks the dynamic behavior the bounded proofs cannot reach. `tests/cosim.py` runs the core and Spike in step over a directed RV32IM program and a randomized regression, and diffs every retired instruction against the golden ISA model. Run it with `make cosim PROG=cosim_m`.
+
+Every module has a self-checking testbench, and directed pipeline programs drive the forwarding, load-use, branch-flush, trap, and timer paths through the assembled core. `tb/freertos_boot_tb.sv` boots the FreeRTOS kernel on the core in simulation, and `tb/coremark_boot_tb.sv` streams the CoreMark image through the bootloader and validates its checksums. The testbenches, the formal proofs, the Spike co-simulation, and both benchmark builds run on every push in CI, and the full system runs on a Basys 3, where CoreMark validates its result checksums on real hardware.
 
 ## Results
 
@@ -132,6 +136,7 @@ make MOD=alu                                # run a module's testbench
 make wave MOD=board_top                     # run the testbench and open the waveform in Surfer
 make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
+make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
 make hex PROG=pl_loaduse                    # assemble tests/pl_loaduse.s to a hex image
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
 make -C sw/coremark all                     # build the CoreMark image
