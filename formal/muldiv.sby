@@ -1,0 +1,13 @@
+[options]
+mode bmc
+depth 12
+
+[engines]
+btor btormc
+
+[script]
+read -formal muldiv_formal.v
+prep -top muldiv_formal
+
+[files]
+build/muldiv_formal.v
