@@ -21,6 +21,10 @@ module gshare
   logic [GhistLen-1:0] ghr;
   logic [         1:0] pht [PhtDepth];
 
+  // Weakly not taken cold state
+  initial
+    for (int i = 0; i < PhtDepth; i++) pht[i] = 2'b01;
+
   assign predict_index = ($bits(predict_index))'(predict_pc >> 2) ^ ghr;
 
   // 2bit saturating counter
@@ -29,7 +33,6 @@ module gshare
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       ghr <= '0;
-      for (int i = 0; i < PhtDepth; i++) pht[i] <= 2'b01;
     end else if (core_en) begin
       if (update_valid) begin
         if (update_taken) begin
