@@ -168,14 +168,14 @@ Synthesized for the Digilent Basys 3 (Xilinx Artix-7). sv2v first converts the S
 | `hazard_unit` | 23 | 0 | 0 |
 | `extend` | 31 | 0 | 0 |
 | `control_unit` | 33 | 0 | 0 |
+| `gshare` | 46 | 10 | 0 |
 | `btb` | 112 | 64 | 0 |
 | `clint` | 219 | 128 | 22 |
 | `alu` | 492 | 0 | 22 |
 | `muldiv` | 567 | 240 | 81 |
 | `csr` | 736 | 383 | 32 |
 | `regfile` | 1050 | 992 | 0 |
-| `gshare` | 2622 | 2058 | 0 |
-| `riscv_pipelined` | 6914 | 4433 | 151 |
+| `riscv_pipelined` | 3774 | 2385 | 151 |
 
 The `board_top` system adds the instruction and data memories as block RAMs.
 

@@ -38,10 +38,11 @@ module coremark_predict_tb ();
     repeat (ClksPerBit) @(posedge clk);
   endtask  // Automatic
 
-  wire v_ex = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
-  wire b_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
-  wire mis = dut.riscv_pipelined_inst.datapath_inst.mispredict;
-  wire c_en = dut.core_en;
+  logic v_ex, b_ex, mis, c_en;
+  assign v_ex = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
+  assign b_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
+  assign mis  = dut.riscv_pipelined_inst.datapath_inst.mispredict;
+  assign c_en = dut.core_en;
 
   always @(posedge clk) begin
     if (!rst && c_en && v_ex && b_ex) begin
@@ -51,8 +52,9 @@ module coremark_predict_tb ();
   end
 
   initial begin
-    for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;  // zero init like bram
+    for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;
     $readmemh("sw/coremark/coremark_sim.hex", img);
+    #1;  // after mem init
     for (int k = 0; k < DEPTH; k++) begin
       dut.imem_inst.g_lane[0].bmem[k] = img[k][7:0];
       dut.imem_inst.g_lane[1].bmem[k] = img[k][15:8];
