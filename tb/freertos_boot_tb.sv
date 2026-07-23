@@ -65,6 +65,7 @@ module freertos_boot_tb ();
   initial begin
     for (int k = 0; k < DEPTH; k++) img[k] = 32'hDEADBEEF;
     $readmemh("sw/freertos/freertos_sim.hex", img);
+    #1;  // after mem init
     for (int k = 0; k < DEPTH; k++) begin
       dut.imem_inst.g_lane[0].bmem[k] = img[k][7:0];
       dut.imem_inst.g_lane[1].bmem[k] = img[k][15:8];

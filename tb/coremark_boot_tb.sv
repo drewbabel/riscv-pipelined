@@ -53,8 +53,9 @@ module coremark_boot_tb ();
   endtask  // Automatic
 
   initial begin
-    for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;  // zero init like bram
+    for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;
     $readmemh("sw/coremark/coremark_sim.hex", img);
+    #1;  // after mem init
     for (int k = 0; k < DEPTH; k++) begin
       dut.imem_inst.g_lane[0].bmem[k] = img[k][7:0];
       dut.imem_inst.g_lane[1].bmem[k] = img[k][15:8];

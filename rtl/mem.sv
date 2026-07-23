@@ -20,6 +20,9 @@ module mem #(
   generate
     for (b = 0; b < 4; b++) begin : g_lane
       logic [7:0] bmem[DEPTH];
+      // Zero init like bram
+      initial
+        for (int i = 0; i < DEPTH; i++) bmem[i] = '0;
       // Fetch read
       always_ff @(posedge clk) instr[8*b+:8] <= bmem[iaddr[AddrWidth+1:2]];
       // Gated write
