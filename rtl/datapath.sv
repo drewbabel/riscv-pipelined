@@ -2,6 +2,7 @@ module datapath
   import alu_pkg::*;
   import opcode_pkg::*;
   import muldiv_pkg::*;
+  import bp_pkg::*;
 #(
     parameter int XLEN = 32
 ) (
@@ -169,6 +170,19 @@ module datapath
   logic                              muldiv_start;
   logic                              muldiv_hold;
 
+  logic                              bp_taken;
+  logic                [GhistLen-1:0] bp_index;
+  logic                              btb_hit;
+  logic                   [XLEN-1:0] btb_target;
+  logic                              btb_is_cond;
+  logic                              predict_taken;
+  logic                   [XLEN-1:0] predict_target;
+  logic                              predict_taken_id, predict_taken_ex;
+  logic                   [XLEN-1:0] predict_target_id, predict_target_ex;
+  logic                [GhistLen-1:0] bp_index_id, bp_index_ex;
+  logic                              mispredict;
+  logic                   [XLEN-1:0] correct_pc;
+
   pc #(
       .XLEN(XLEN),
       .RESET_ADDR('h0000_0000)
@@ -183,17 +197,26 @@ module datapath
   // IF/ID
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      instr_id    <= '0;
-      pc_id       <= '0;
-      pc_plus4_id <= '0;
+      instr_id          <= '0;
+      pc_id             <= '0;
+      pc_plus4_id       <= '0;
+      predict_taken_id  <= 1'b0;
+      predict_target_id <= '0;
+      bp_index_id       <= '0;
     end else if (core_en && flush) begin
-      instr_id    <= 32'h0000_0013;  // NOP
-      pc_id       <= '0;
-      pc_plus4_id <= '0;
+      instr_id          <= 32'h0000_0013;  // NOP
+      pc_id             <= '0;
+      pc_plus4_id       <= '0;
+      predict_taken_id  <= 1'b0;
+      predict_target_id <= '0;
+      bp_index_id       <= '0;
     end else if (core_en && !stall) begin
-      instr_id    <= instr;
-      pc_id       <= pc;
-      pc_plus4_id <= pc_plus4;
+      instr_id          <= instr;
+      pc_id             <= pc;
+      pc_plus4_id       <= pc_plus4;
+      predict_taken_id  <= predict_taken;
+      predict_target_id <= predict_target;
+      bp_index_id       <= bp_index;
     end
   end
 
@@ -253,10 +276,14 @@ module datapath
   // ID/EX
   always_ff @(posedge clk) begin
     if (!rst_n) begin
-      reg_write_ex <= 1'b0;
-      mem_write_ex <= 1'b0;
-      is_muldiv_ex <= 1'b0;
+      reg_write_ex     <= 1'b0;
+      mem_write_ex     <= 1'b0;
+      is_muldiv_ex     <= 1'b0;
+      predict_taken_ex <= 1'b0;
     end else if (core_en && !muldiv_hold) begin
+      predict_taken_ex  <= (predict_taken_id && !stall && !flush);
+      predict_target_ex <= predict_target_id;
+      bp_index_ex       <= bp_index_id;
       pc_ex            <= pc_id;
       pc_plus4_ex      <= pc_plus4_id;
       funct3_ex        <= instr_id[14:12];
@@ -384,6 +411,43 @@ module datapath
 
   assign muldiv_start = is_muldiv_ex && !muldiv_busy && !muldiv_done;
 
+  // Branch prediction
+  gshare #(
+      .XLEN(XLEN)
+  ) gshare_inst (
+      .clk          (clk),
+      .core_en      (core_en),
+      .rst_n        (rst_n),
+      .predict_pc   (pc),
+      .predict_taken(bp_taken),
+      .predict_index(bp_index),
+      .update_valid (branch_ex && valid_ex), // resolved branches
+      .update_taken (branch_taken_ex),
+      .update_index (bp_index_ex)
+  );
+
+  btb #(
+      .XLEN(XLEN)
+  ) btb_inst (
+      .clk           (clk),
+      .core_en       (core_en),
+      .rst_n         (rst_n),
+      .lookup_pc     (pc),
+      .hit           (btb_hit),
+      .target        (btb_target),
+      .is_cond       (btb_is_cond),
+      .update_valid  (pc_src_ex), // taken transfers
+      .update_pc     (pc_ex),
+      .update_target (pc_target_ex),
+      .update_is_cond(branch_ex)
+  );
+
+  assign predict_taken  = btb_hit && (bp_taken || !btb_is_cond);
+  assign predict_target = btb_target;
+  assign mispredict = valid_ex && ((predict_taken_ex != pc_src_ex) ||
+      (pc_src_ex && predict_taken_ex && predict_target_ex != pc_target_ex));
+  assign correct_pc = mispredict ? (pc_src_ex ? pc_target_ex : pc_plus4_ex) : '0;
+
   // Branch resolution
   always_comb begin
     case (funct3_ex)
@@ -397,7 +461,7 @@ module datapath
     endcase
   end
 
-  assign pc_src_ex = valid_ex && ((branch_ex & branch_taken_ex) | jump_ex);
+  assign pc_src_ex = valid_ex && ((branch_ex & branch_taken_ex) || jump_ex);
   assign pc_target_ex = pc_target_src_ex ? {alu_result[XLEN-1:1], 1'b0} : (pc_ex + imm_ext_ex);
 
   // EX exceptions
@@ -464,7 +528,7 @@ module datapath
   // CSR read to writeback
   assign result_ex = is_muldiv_ex ? muldiv_result : (csr_access_ex ? csr_rdata : alu_result);
 
-  assign flush = pc_src_ex | trap_taken | mret_taken;
+  assign flush = mispredict | trap_taken | mret_taken;
 
   // EX/MEM
   always_ff @(posedge clk) begin
@@ -551,7 +615,8 @@ module datapath
   always_comb begin
     if (trap_taken) pc_next = trap_vector;
     else if (mret_taken) pc_next = mepc_out;
-    else if (pc_src_ex) pc_next = pc_target_ex;
+    else if (mispredict) pc_next = correct_pc;
+    else if (predict_taken) pc_next = predict_target;
     else pc_next = pc_plus4;
   end
 
