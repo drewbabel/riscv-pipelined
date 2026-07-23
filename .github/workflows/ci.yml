@@ -12,7 +12,7 @@ jobs:
       - name: Split testbenches into groups
         id: list
         run: |
-          groups=$(ls tb/*_tb.sv | sed 's#.*/##;s#_tb\.sv$##' | grep -vE '^(coremark_boot|freertos_boot|gate_check)$' | python3 -c "import sys, json; n=[l.strip() for l in sys.stdin if l.strip()]; g=[[] for _ in range(4)]; [g[i % 4].append(x) for i, x in enumerate(n)]; print(json.dumps([' '.join(x) for x in g if x]))")
+          groups=$(ls tb/*_tb.sv | sed 's#.*/##;s#_tb\.sv$##' | grep -vE '^(coremark_boot|coremark_predict|freertos_boot|gate_check)$' | python3 -c "import sys, json; n=[l.strip() for l in sys.stdin if l.strip()]; g=[[] for _ in range(4)]; [g[i % 4].append(x) for i, x in enumerate(n)]; print(json.dumps([' '.join(x) for x in g if x]))")
           echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
   testbenches:
