@@ -1,4 +1,5 @@
 #   make MOD=pc                  compile rtl/ + that tb, run (FAIL exits nonzero)
+#   make vsim MOD=pc             fast 2-state Verilator run (perf sweeps + regression; not X-debug)
 #   make wave MOD=alu            same, then open the waveform in surfer (opens even on FAIL)
 #   make view MOD=alu            open testbench waveform in surfer (no rerun) (error if .vcd missing)
 #   make view-formal MOD=alu     open formal waveform; error if .vcd missing
@@ -13,6 +14,7 @@ PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp
 RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
 TB  := tb/$(MOD)_tb.sv
 SIM := build/sim
+VDIR := build/vobj_$(MOD)
 VCD := $(MOD)_tb.vcd
 WAVE_STATE := tb/$(MOD).ron
 FORMAL := formal/$(MOD).sby
@@ -28,6 +30,13 @@ run:
 	@mkdir -p build
 	iverilog -g2012 -s $(MOD)_tb -o $(SIM) $(RTL) $(TB)
 	vvp $(SIM)
+
+vsim:
+	@test -n "$(MOD)" || { echo "usage: make vsim MOD=<module>  (fast 2-state Verilator run)"; exit 1; }
+	@mkdir -p build
+	verilator --binary --timing -O3 -j 4 -Wno-fatal -Wno-WIDTH \
+		--top-module $(MOD)_tb -Mdir $(VDIR) -o $(MOD)_vsim $(RTL) $(TB)
+	$(VDIR)/$(MOD)_vsim $(PLUSARGS)
 
 prog:
 	@test -n "$(PROG)" || { echo "usage: make prog PROG=<name>  (tests/<name>.s, PASS = x28==1)"; exit 1; }
@@ -81,4 +90,4 @@ clean:
 	rm -rf build *.vcd sim_build results.xml
 
 .DEFAULT_GOAL := run
-.PHONY: run prog wave formal view view-formal hex dis cosim clean
+.PHONY: run vsim prog wave formal view view-formal hex dis cosim clean
