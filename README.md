@@ -2,11 +2,13 @@
 
 [![CI](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml/badge.svg)](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml)
 
-A five-stage pipelined RV32IM processor with hardware hazard resolution and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
+A five-stage pipelined RV32IM processor with hardware hazard resolution, a gshare branch predictor, and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
 
 The core executes the RV32I base integer instruction set together with the M extension for multiply and divide, across the classic instruction fetch (IF), instruction decode (ID), execute (EX), memory (MEM), and write-back (WB) stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a multiply or divide result, a loaded word, a CSR value, or the return address writes back in WB.
 
-The `hazard_unit` preserves correct execution across the overlapped instructions. An instruction whose operand is still in flight receives the value forwarded from the MEM or WB stage instead of the stale register file copy. A load followed immediately by a dependent instruction cannot forward in time, so the unit inserts a one-cycle stall. Branches and jumps resolve in EX, and a taken branch flushes the two younger instructions already in the pipeline.
+The `hazard_unit` preserves correct execution across the overlapped instructions. An instruction whose operand is still in flight receives the value forwarded from the MEM or WB stage instead of the stale register file copy. A load followed immediately by a dependent instruction cannot forward in time, so the unit inserts a one-cycle stall.
+
+A gshare predictor and a branch target buffer take the penalty off correctly predicted branches. At fetch a global history register hashes with the program counter to index a table of two-bit saturating counters for the direction, and the target buffer supplies the address, so a predicted-taken branch redirects the next fetch in the same cycle. The prediction travels down the pipeline to EX, where the resolved direction and target check it. A correct prediction retires the branch with no bubble, and only a misprediction flushes the two younger instructions and restarts the fetch from the correct address.
 
 The `muldiv` unit implements the M extension. Multiply maps to a DSP block, and divide runs an iterative shift-subtract state machine that produces one quotient bit per clock. Both stall the pipeline through a shared busy handshake, and the operation holds in EX until the result is ready, since a multi-cycle result cannot retire in a single step.
 
@@ -22,11 +24,12 @@ CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter
 
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
-| Pipelined RV32IM, hardware multiply and divide | 33.3 MHz | 83.36 | 2.50 |
-| Pipelined RV32I, software multiply and divide | 33.3 MHz | 32.09 | 0.96 |
+| [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | 99.37 | 2.98 |
+| [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
+| [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
 | [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
 
-The M extension raises the pipeline by 2.6x, from 0.96 to 2.50 CoreMark per MHz, comparing hardware multiply and divide against a software build of the same benchmark on one bitstream. The single-cycle baseline resolves each instruction in a single clock and incurs no hazard penalty, so it retires more work per cycle than the integer pipeline, but its longer critical path limits it to 20 MHz. The pipeline more than offsets that per-cycle deficit with a 1.67x higher clock, and the hardware multiplier compounds the advantage to roughly 3x the single-cycle baseline.
+The gshare predictor lifts the pipeline from 2.50 to 2.98 CoreMark per MHz, since a correctly predicted branch now retires without the two-cycle flush. The M extension raises the pipeline by 2.6x, from 0.96 to 2.50 CoreMark per MHz, comparing hardware multiply and divide against a software build of the same benchmark on one bitstream. The single-cycle baseline resolves each instruction in a single clock and incurs no hazard penalty, so it retires more work per cycle than the integer pipeline, but its longer critical path limits it to 20 MHz. The pipeline more than offsets that per-cycle deficit with a 1.67x higher clock, and the hardware multiplier compounds the advantage to roughly 3x the single-cycle baseline.
 
 ## Verification
 
@@ -46,7 +49,7 @@ A load followed by a dependent instruction stalls the pipeline for one cycle, an
 
 ![Load-use stall waveform](docs/loaduse_waveform.svg)
 
-A taken branch resolves in EX and flushes the two wrong-path instructions behind it, so their register writes never commit.
+A mispredicted branch resolves in EX and flushes the two wrong-path instructions behind it, so their register writes never commit.
 
 ![Taken-branch flush waveform](docs/flush_waveform.svg)
 
@@ -74,6 +77,8 @@ The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
 | `XLEN` | `32` | Data and register width |
 | `DEPTH` | `64` | Memory depth in words, raised to `16384` for the Basys 3 system |
 | `ClkDiv` | `32` | Board clock-enable divisor, 3 on the validated bitstream |
+| `GhistLen` | `10` | gshare global-history and pattern-history-table index width |
+| `BtbIdxLen` | `6` | Branch target buffer index width |
 
 ## Interface
 
@@ -99,7 +104,7 @@ The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
 |--------|------------|
 | Operand still in MEM or WB | Forward into the EX operand muxes |
 | Load followed by a dependent instruction | One-cycle stall, then forward |
-| Taken branch or jump, resolved in EX | Flush the two younger instructions |
+| Mispredicted branch or jump, resolved in EX | Flush the two younger instructions and refetch |
 | Multiply or divide occupying EX | Stall the pipeline until the multi-cycle result retires |
 
 ## Machine mode
@@ -163,12 +168,14 @@ Synthesized for the Digilent Basys 3 (Xilinx Artix-7). sv2v first converts the S
 | `hazard_unit` | 23 | 0 | 0 |
 | `extend` | 31 | 0 | 0 |
 | `control_unit` | 33 | 0 | 0 |
+| `btb` | 112 | 64 | 0 |
 | `clint` | 219 | 128 | 22 |
 | `alu` | 492 | 0 | 22 |
 | `muldiv` | 567 | 240 | 81 |
 | `csr` | 736 | 383 | 32 |
 | `regfile` | 1050 | 992 | 0 |
-| `riscv_pipelined` | 3168 | 2119 | 151 |
+| `gshare` | 2622 | 2058 | 0 |
+| `riscv_pipelined` | 6914 | 4433 | 151 |
 
 The `board_top` system adds the instruction and data memories as block RAMs.
 
