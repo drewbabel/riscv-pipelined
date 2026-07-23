@@ -38,10 +38,11 @@ module coremark_predict_tb ();
     repeat (ClksPerBit) @(posedge clk);
   endtask  // Automatic
 
-  wire v_ex = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
-  wire b_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
-  wire mis = dut.riscv_pipelined_inst.datapath_inst.mispredict;
-  wire c_en = dut.core_en;
+  logic v_ex, b_ex, mis, c_en;
+  assign v_ex = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
+  assign b_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
+  assign mis  = dut.riscv_pipelined_inst.datapath_inst.mispredict;
+  assign c_en = dut.core_en;
 
   always @(posedge clk) begin
     if (!rst && c_en && v_ex && b_ex) begin

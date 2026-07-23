@@ -29,9 +29,10 @@ module predict_tb ();
   );
 
   // Resolve taps
-  wire core_valid_ex = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
-  wire core_branch_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
-  wire core_mispred = dut.riscv_pipelined_inst.datapath_inst.mispredict;
+  logic core_valid_ex, core_branch_ex, core_mispred;
+  assign core_valid_ex  = dut.riscv_pipelined_inst.datapath_inst.valid_ex;
+  assign core_branch_ex = dut.riscv_pipelined_inst.datapath_inst.branch_ex;
+  assign core_mispred   = dut.riscv_pipelined_inst.datapath_inst.mispredict;
 
   task automatic do_reset();
     rst_n = 0;
