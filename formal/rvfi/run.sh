@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Build and run the riscv-formal suite against the core
-# no args proves all, --list prints check names, names prove only those
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -17,13 +16,8 @@ mkdir -p "$DST"
 cp "$HERE/wrapper.sv" "$DST/wrapper.sv"
 cp "$HERE/checks.cfg" "$DST/checks.cfg"
 
-RTL=(
-  alu_pkg csr_pkg opcode_pkg muldiv_pkg alu extend pc regfile imem dmem
-  alu_decoder control_decoder control_unit hazard_unit csr muldiv datapath riscv_pipelined
-)
-SRC=()
-for m in "${RTL[@]}"; do SRC+=("$ROOT/rtl/$m.sv"); done
-sv2v -D RISCV_FORMAL "${SRC[@]}" > "$DST/$CORE.v"
+# every module in rtl
+sv2v -D RISCV_FORMAL "$ROOT"/rtl/*.sv > "$DST/$CORE.v"
 
 cd "$DST"
 python3 "$RVF/checks/genchecks.py" >&2

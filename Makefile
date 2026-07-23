@@ -9,7 +9,7 @@
 #   make clean                   delete build artifacts (build/, *.vcd)
 
 # packages must compile before any module that imports them
-PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv
+PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp_pkg.sv
 RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
 TB  := tb/$(MOD)_tb.sv
 SIM := build/sim
