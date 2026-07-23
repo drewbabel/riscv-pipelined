@@ -24,7 +24,8 @@ module clint
   localparam logic [15:0] MtimeLo = 16'hBFF8;
   localparam logic [15:0] MtimeHi = 16'hBFFC;
 
-  wire [15:0] off = addr[15:0];
+  logic [15:0] off;
+  assign off = addr[15:0];
 
   assign timer_irq = mtime >= mtimecmp;
 
