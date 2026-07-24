@@ -10,7 +10,7 @@ The `hazard_unit` preserves correct execution across the overlapped instructions
 
 A gshare predictor and a branch target buffer take the penalty off correctly predicted branches. At fetch a global history register hashes with the program counter to index a table of two-bit saturating counters for the direction, and the target buffer supplies the address, so a predicted-taken branch redirects the next fetch in the same cycle. The prediction travels down the pipeline to EX, where the resolved direction and target check it. A correct prediction retires the branch with no bubble, and only a misprediction flushes the two younger instructions and restarts the fetch from the correct address.
 
-The `muldiv` unit implements the M extension. Multiply maps to a DSP block, and divide runs an iterative shift-subtract state machine that produces one quotient bit per clock. Both stall the pipeline through a shared busy handshake, and the operation holds in EX until the result is ready, since a multi-cycle result cannot retire in a single step.
+The `muldiv` unit implements the M extension. Multiply maps to a DSP block, and divide runs an iterative shift-subtract state machine that produces one quotient bit per clock. The operation holds in EX until its result is ready, since a multi-cycle result cannot retire in a single step. A shared busy handshake freezes fetch, decode, and execute for the wait. The instructions already ahead in memory and write-back keep retiring while a bubble fills the slot behind, so a divide stalls only the younger instructions.
 
 The `csr` block holds the machine-mode registers and the trap unit. On an exception or an enabled timer interrupt the trap unit records the faulting program counter in `mepc` and the reason in `mcause`, redirects the fetch to the `mtvec` handler, and cancels the younger instructions behind the trapping one. An `mret` restores the interrupt-enable stack and returns to `mepc`. The `clint` block raises the timer interrupt once its memory-mapped `mtime` reaches `mtimecmp`.
 
@@ -24,6 +24,7 @@ CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter
 
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
+| Current | 33.3 MHz | 99.37 | 2.98 |
 | [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | 99.37 | 2.98 |
 | [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
 | [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
@@ -105,7 +106,7 @@ The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
 | Operand still in MEM or WB | Forward into the EX operand muxes |
 | Load followed by a dependent instruction | One-cycle stall, then forward |
 | Mispredicted branch or jump, resolved in EX | Flush the two younger instructions and refetch |
-| Multiply or divide occupying EX | Stall the pipeline until the multi-cycle result retires |
+| Multiply or divide occupying EX | Freeze fetch through execute and drain the instructions ahead until the result retires |
 
 ## Machine mode
 
@@ -151,6 +152,7 @@ make cosim PROG=cosim_m                     # lockstep-compare an rv32im program
 make hex PROG=pl_loaduse                    # assemble tests/pl_loaduse.s to a hex image
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
 make -C sw/coremark all                     # build the CoreMark image
+make -C sw/coremark ARCH=rv32im_zicsr all   # build it with hardware multiply and divide
 ./build_board.sh 3 flash                    # build the bitstream at divide-by-3 and flash
 ./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
@@ -175,7 +177,7 @@ Synthesized for the Digilent Basys 3 (Xilinx Artix-7). sv2v first converts the S
 | `muldiv` | 567 | 240 | 81 |
 | `csr` | 736 | 383 | 32 |
 | `regfile` | 1050 | 992 | 0 |
-| `riscv_pipelined` | 3774 | 2385 | 151 |
+| `riscv_pipelined` | 3805 | 2385 | 151 |
 
 The `board_top` system adds the instruction and data memories as block RAMs.
 
