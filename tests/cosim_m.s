@@ -35,4 +35,12 @@ _start:
         sw    x27, 4(x3)
         lw    x28, 0(x3)
 
+        li    x29, 3              # second pass hits in the btb
+jloop:
+        jal   x30, jtgt
+jtgt:
+        andi  x31, x30, 255       # link consumed one cycle behind
+        addi  x29, x29, -1
+        bnez  x29, jloop
+
 done:   beq   x0, x0, done
