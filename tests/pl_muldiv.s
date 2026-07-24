@@ -16,8 +16,8 @@ _start:
         addi x5,  x0, 3
         nop
         nop
-        nop
-        nop
+        addi x10, x0, 99
+        addi x11, x0, 88
         divu x6,  x4, x5
         nop
         nop

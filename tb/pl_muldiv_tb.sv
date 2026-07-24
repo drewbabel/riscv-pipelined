@@ -14,6 +14,10 @@ module pl_muldiv_tb ();
   int checks = 0;
   int errors = 0;
 
+  int              hold_run = 0;
+  logic [Xlen-1:0] drain_x10, drain_x11;
+  logic            drain_seen = 1'b0;
+
   always #5 clk = ~clk;
 
   top #(
@@ -48,6 +52,17 @@ module pl_muldiv_tb ();
     $finish;
   endtask  // Automatic
 
+  // Older instructions retire while divide holds EX
+  always @(negedge clk) begin
+    if (dut.riscv_pipelined_inst.datapath_inst.muldiv_hold) hold_run = hold_run + 1;
+    else hold_run = 0;
+    if (hold_run == 10 && !drain_seen) begin
+      drain_seen = 1'b1;
+      drain_x10  = dut.riscv_pipelined_inst.datapath_inst.regfile_inst.regfile_mem[10];
+      drain_x11  = dut.riscv_pipelined_inst.datapath_inst.regfile_inst.regfile_mem[11];
+    end
+  end
+
   initial begin
     for (int i = 0; i < Depth; i++) dut.imem_inst.mem[i] = 32'h00000013;  // NOP fill
     $readmemh("tests/pl_muldiv.hex", dut.imem_inst.mem);
@@ -58,6 +73,9 @@ module pl_muldiv_tb ();
     check("x6 divu", dut.riscv_pipelined_inst.datapath_inst.regfile_inst.regfile_mem[6], 32'd6);
     check("x7 remu", dut.riscv_pipelined_inst.datapath_inst.regfile_inst.regfile_mem[7], 32'd2);
     check("x9 div", dut.riscv_pipelined_inst.datapath_inst.regfile_inst.regfile_mem[9], 32'hFFFFFFFA);
+    check("drain seen", 32'(drain_seen), 32'd1);
+    check("x10 drained", drain_x10, 32'd99);
+    check("x11 drained", drain_x11, 32'd88);
 
     verdict();
   end
