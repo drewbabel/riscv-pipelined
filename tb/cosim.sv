@@ -31,7 +31,6 @@ module cosim ();
 
   // RVFI retirement taps
   logic            r_valid;
-  logic            r_hold;
   logic [Xlen-1:0] r_pc;
   logic [Xlen-1:0] r_insn;
   logic [Xlen-1:0] r_wdata;
@@ -40,7 +39,6 @@ module cosim ();
   logic [     3:0] r_wmask;
   logic [Xlen-1:0] r_sdata;
   assign r_valid = dut.riscv_pipelined_inst.dbg_valid;
-  assign r_hold  = dut.riscv_pipelined_inst.datapath_inst.muldiv_hold;
   assign r_pc    = dut.riscv_pipelined_inst.dbg_pc_rdata;
   assign r_insn  = dut.riscv_pipelined_inst.dbg_insn;
   assign r_wdata = dut.riscv_pipelined_inst.dbg_rd_wdata;
@@ -82,7 +80,7 @@ module cosim ();
     for (int i = 0; i < max_commits && !stop; i++) begin
       @(posedge clk);
       #1;
-      if (r_valid && !r_hold) begin
+      if (r_valid) begin
         if (have_last && r_pc === last_pc) stop = 1;
         else begin
           emit_commit();

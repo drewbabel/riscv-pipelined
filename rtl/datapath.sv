@@ -130,6 +130,10 @@ module datapath
   logic                              flush;
   logic                   [     1:0] forward_a;
   logic                   [     1:0] forward_b;
+  logic                   [     1:0] fwd_a;
+  logic                   [     1:0] fwd_b;
+  logic                              fwd_hold;
+  logic                              mem_pc4;
 
   // Branch resolution
   logic                              branch_taken_ex;
@@ -280,36 +284,41 @@ module datapath
       mem_write_ex     <= 1'b0;
       is_muldiv_ex     <= 1'b0;
       predict_taken_ex <= 1'b0;
-    end else if (core_en && !muldiv_hold) begin
-      predict_taken_ex  <= (predict_taken_id && !stall && !flush);
-      predict_target_ex <= predict_target_id;
-      bp_index_ex       <= bp_index_id;
-      pc_ex            <= pc_id;
-      pc_plus4_ex      <= pc_plus4_id;
-      funct3_ex        <= instr_id[14:12];
-      imm_ext_ex       <= imm_ext;
-      alu_a_src_ex     <= alu_a_src;
-      pc_target_src_ex <= pc_target_src;
-      alu_src_ex       <= alu_src;
-      result_src_ex    <= (stall || flush) ? 2'd0 : result_src;
-      alu_ctrl_ex      <= alu_ctrl;
-      rs1_data_ex      <= rs1_data;
-      rs2_data_ex      <= rs2_data;
-      reg_write_ex     <= (reg_write && !stall && !flush);
-      mem_write_ex     <= (mem_write_dec && !stall && !flush);
-      rd_ex            <= (stall || flush) ? 5'd0 : instr_id[11:7];
-      rs1_ex           <= instr_id[19:15];
-      rs2_ex           <= instr_id[24:20];
-      branch_ex        <= (branch && !stall && !flush);
-      jump_ex          <= (jump && !stall && !flush);
-      instr_ex         <= instr_id;
-      csr_access_ex    <= (csr_access && !stall && !flush);
-      is_ecall_ex      <= (is_ecall && !stall && !flush);
-      is_ebreak_ex     <= (is_ebreak && !stall && !flush);
-      is_mret_ex       <= (is_mret && !stall && !flush);
-      exc_illegal_ex   <= (exc_illegal && !stall && !flush);
-      is_muldiv_ex     <= (is_muldiv && !stall && !flush);
-      muldiv_op_ex     <= muldiv_op;
+    end else if (core_en) begin
+      if (muldiv_hold) begin  // Latch operands
+        rs1_data_ex <= forwarded_rs1;
+        rs2_data_ex <= forwarded_rs2;
+      end else begin
+        predict_taken_ex  <= (predict_taken_id && !stall && !flush);
+        predict_target_ex <= predict_target_id;
+        bp_index_ex       <= bp_index_id;
+        pc_ex            <= pc_id;
+        pc_plus4_ex      <= pc_plus4_id;
+        funct3_ex        <= instr_id[14:12];
+        imm_ext_ex       <= imm_ext;
+        alu_a_src_ex     <= alu_a_src;
+        pc_target_src_ex <= pc_target_src;
+        alu_src_ex       <= alu_src;
+        result_src_ex    <= (stall || flush) ? 2'd0 : result_src;
+        alu_ctrl_ex      <= alu_ctrl;
+        rs1_data_ex      <= rs1_data;
+        rs2_data_ex      <= rs2_data;
+        reg_write_ex     <= (reg_write && !stall && !flush);
+        mem_write_ex     <= (mem_write_dec && !stall && !flush);
+        rd_ex            <= (stall || flush) ? 5'd0 : instr_id[11:7];
+        rs1_ex           <= instr_id[19:15];
+        rs2_ex           <= instr_id[24:20];
+        branch_ex        <= (branch && !stall && !flush);
+        jump_ex          <= (jump && !stall && !flush);
+        instr_ex         <= instr_id;
+        csr_access_ex    <= (csr_access && !stall && !flush);
+        is_ecall_ex      <= (is_ecall && !stall && !flush);
+        is_ebreak_ex     <= (is_ebreak && !stall && !flush);
+        is_mret_ex       <= (is_mret && !stall && !flush);
+        exc_illegal_ex   <= (exc_illegal && !stall && !flush);
+        is_muldiv_ex     <= (is_muldiv && !stall && !flush);
+        muldiv_op_ex     <= muldiv_op;
+      end
     end
   end
 
@@ -320,12 +329,17 @@ module datapath
       valid_ex  <= 1'b0;
       valid_mem <= 1'b0;
       valid_wb  <= 1'b0;
-    end else if (core_en && !muldiv_hold) begin
-      if (flush) valid_id <= 1'b0;
-      else if (!stall) valid_id <= 1'b1;
-      valid_ex  <= valid_id && !stall && !flush;
-      valid_mem <= valid_ex;
-      valid_wb  <= valid_mem;
+    end else if (core_en) begin
+      if (muldiv_hold) begin
+        valid_mem <= 1'b0;
+        valid_wb  <= valid_mem;
+      end else begin
+        if (flush) valid_id <= 1'b0;
+        else if (!stall) valid_id <= 1'b1;
+        valid_ex  <= valid_id && !stall && !flush;
+        valid_mem <= valid_ex;
+        valid_wb  <= valid_mem;
+      end
     end
   end
 
@@ -359,16 +373,33 @@ module datapath
   assign muldiv_hold = is_muldiv_ex && !muldiv_done;
   assign stall = hazard_stall || muldiv_hold;
 
+  // Operands hold once the muldiv samples them
+  assign fwd_hold = muldiv_hold && !muldiv_start;
+  // A predicted jump links pc + 4
+  assign mem_pc4 = (result_src_mem == 2'd2);
+
   always_comb begin
-    case (forward_a)
+    if (fwd_hold) fwd_a = 2'b00;
+    else if (forward_a == 2'b01) fwd_a = mem_pc4 ? 2'b10 : 2'b01;
+    else if (forward_a == 2'b10) fwd_a = 2'b11;
+    else fwd_a = 2'b00;
+
+    if (fwd_hold) fwd_b = 2'b00;
+    else if (forward_b == 2'b01) fwd_b = mem_pc4 ? 2'b10 : 2'b01;
+    else if (forward_b == 2'b10) fwd_b = 2'b11;
+    else fwd_b = 2'b00;
+
+    case (fwd_a)
       2'b01:   forwarded_rs1 = alu_result_mem;
-      2'b10:   forwarded_rs1 = result;
+      2'b10:   forwarded_rs1 = pc_plus4_mem;
+      2'b11:   forwarded_rs1 = result;
       default: forwarded_rs1 = rs1_data_ex;
     endcase
 
-    case (forward_b)
+    case (fwd_b)
       2'b01:   forwarded_rs2 = alu_result_mem;
-      2'b10:   forwarded_rs2 = result;
+      2'b10:   forwarded_rs2 = pc_plus4_mem;
+      2'b11:   forwarded_rs2 = result;
       default: forwarded_rs2 = rs2_data_ex;
     endcase
 
@@ -535,15 +566,20 @@ module datapath
     if (!rst_n) begin
       reg_write_mem <= 1'b0;
       mem_write_mem <= 1'b0;
-    end else if (core_en && !muldiv_hold) begin
-      alu_result_mem <= result_ex;
-      pc_plus4_mem   <= pc_plus4_ex;
-      write_data_mem <= forwarded_rs2;
-      mem_write_mem  <= mem_write_ex && !trap_taken;
-      funct3_mem     <= funct3_ex;
-      reg_write_mem  <= reg_write_ex && !trap_taken;
-      result_src_mem <= result_src_ex;
-      rd_mem         <= rd_ex;
+    end else if (core_en) begin
+      if (muldiv_hold) begin  // Inject NOP
+        reg_write_mem <= 1'b0;
+        mem_write_mem <= 1'b0;
+      end else begin
+        alu_result_mem <= result_ex;
+        pc_plus4_mem   <= pc_plus4_ex;
+        write_data_mem <= forwarded_rs2;
+        mem_write_mem  <= mem_write_ex && !trap_taken;
+        funct3_mem     <= funct3_ex;
+        reg_write_mem  <= reg_write_ex && !trap_taken;
+        result_src_mem <= result_src_ex;
+        rd_mem         <= rd_ex;
+      end
     end
   end
 
@@ -592,7 +628,7 @@ module datapath
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       reg_write_wb <= 1'b0;
-    end else if (core_en && !muldiv_hold) begin
+    end else if (core_en) begin
       result_src_wb <= result_src_mem;
       alu_result_wb <= alu_result_mem;
       pc_plus4_wb   <= pc_plus4_mem;
@@ -633,8 +669,8 @@ module datapath
   logic rvfi_trap_mem, rvfi_trap_wb;
 
   always_ff @(posedge clk) begin
-    if (!muldiv_hold) begin
-    rvfi_insn_ex  <= instr_id;
+    // Freeze like ID/EX
+    if (!muldiv_hold) rvfi_insn_ex <= instr_id;
     rvfi_insn_mem <= rvfi_insn_ex;
     rvfi_insn_wb  <= rvfi_insn_mem;
 
@@ -658,7 +694,6 @@ module datapath
 
     rvfi_trap_mem <= trap_taken;
     rvfi_trap_wb  <= rvfi_trap_mem;
-    end
   end
 
   assign dbg_valid     = valid_wb;
