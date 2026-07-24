@@ -130,6 +130,9 @@ module datapath
   logic                              flush;
   logic                   [     1:0] forward_a;
   logic                   [     1:0] forward_b;
+  logic                   [     1:0] fwd_a;
+  logic                   [     1:0] fwd_b;
+  logic                              mem_pc4;
 
   // Branch resolution
   logic                              branch_taken_ex;
@@ -359,16 +362,29 @@ module datapath
   assign muldiv_hold = is_muldiv_ex && !muldiv_done;
   assign stall = hazard_stall || muldiv_hold;
 
+  // A predicted jump links pc + 4
+  assign mem_pc4 = (result_src_mem == 2'd2);
+
   always_comb begin
-    case (forward_a)
+    if (forward_a == 2'b01) fwd_a = mem_pc4 ? 2'b10 : 2'b01;
+    else if (forward_a == 2'b10) fwd_a = 2'b11;
+    else fwd_a = 2'b00;
+
+    if (forward_b == 2'b01) fwd_b = mem_pc4 ? 2'b10 : 2'b01;
+    else if (forward_b == 2'b10) fwd_b = 2'b11;
+    else fwd_b = 2'b00;
+
+    case (fwd_a)
       2'b01:   forwarded_rs1 = alu_result_mem;
-      2'b10:   forwarded_rs1 = result;
+      2'b10:   forwarded_rs1 = pc_plus4_mem;
+      2'b11:   forwarded_rs1 = result;
       default: forwarded_rs1 = rs1_data_ex;
     endcase
 
-    case (forward_b)
+    case (fwd_b)
       2'b01:   forwarded_rs2 = alu_result_mem;
-      2'b10:   forwarded_rs2 = result;
+      2'b10:   forwarded_rs2 = pc_plus4_mem;
+      2'b11:   forwarded_rs2 = result;
       default: forwarded_rs2 = rs2_data_ex;
     endcase
 
