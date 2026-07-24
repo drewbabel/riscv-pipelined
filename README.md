@@ -145,6 +145,7 @@ Every module builds from the top-level Makefile.
 
 ```
 make MOD=alu                                # run a module's testbench
+make vsim MOD=coremark_boot                 # fast two-state Verilator run of a long testbench
 make wave MOD=board_top                     # run the testbench and open the waveform in Surfer
 make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
@@ -183,4 +184,4 @@ The `board_top` system adds the instruction and data memories as block RAMs.
 
 ### Tool versions
 
-Icarus Verilog 13.0, Yosys 0.66, SymbiYosys 0.66 with Yices 2, sv2v 0.0.13, nextpnr-xilinx 0.8.2, the RISC-V GNU toolchain (`riscv64-elf-gcc` 16.1.0), Python 3.11, and Surfer.
+Icarus Verilog 13.0, Verilator 5.050, Yosys 0.66, SymbiYosys 0.66 with Yices 2, sv2v 0.0.13, nextpnr-xilinx 0.8.2, the RISC-V GNU toolchain (`riscv64-elf-gcc` 16.1.0), Python 3.11, and Surfer.
