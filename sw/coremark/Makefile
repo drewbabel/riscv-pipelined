@@ -7,13 +7,14 @@ OBJCOPY := riscv64-elf-objcopy
 OBJDUMP := riscv64-elf-objdump
 
 CORE_CLK_HZ := 33333333
+ARCH        ?= rv32i_zicsr
 
 INCS := -I. -I$(SRC)
 DEFS := -DHAS_FLOAT=1 -DHAS_TIME_H=0 -DUSE_CLOCK=0 -DHAS_STDIO=0 -DHAS_PRINTF=0 \
         -DMEM_METHOD=MEM_STATIC -DMAIN_HAS_NOARGC=1 -DCORE_CLK_HZ=$(CORE_CLK_HZ) \
-        -DFLAGS_STR='"-O2 -march=rv32i_zicsr"'
-CFLAGS  := -march=rv32i_zicsr -mabi=ilp32 -O2 -ffreestanding -Wall $(INCS) $(DEFS)
-LDFLAGS := -march=rv32i_zicsr -mabi=ilp32 -nostdlib -nostartfiles -T link.ld
+        -DFLAGS_STR='"-O2 -march=$(ARCH)"'
+CFLAGS  := -march=$(ARCH) -mabi=ilp32 -O2 -ffreestanding -Wall $(INCS) $(DEFS)
+LDFLAGS := -march=$(ARCH) -mabi=ilp32 -nostdlib -nostartfiles -T link.ld
 
 CORESRC := $(SRC)/core_main.c $(SRC)/core_list_join.c $(SRC)/core_matrix.c \
            $(SRC)/core_state.c $(SRC)/core_util.c
