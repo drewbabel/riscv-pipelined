@@ -34,9 +34,9 @@ The gshare predictor lifts the pipeline from 2.50 to 2.98 CoreMark per MHz, sinc
 
 ## Verification
 
-The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification and the divide instructions of the M extension under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
 
-A 32-bit multiplier and a full iterative divider are both beyond in-core bounded model checking, so the `muldiv` unit is verified by method. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair, and the Spike co-simulation below covers the general divide. Run the unit proof with `make formal MOD=muldiv`.
+A 32-bit multiplier is beyond in-core bounded model checking, so `insn_mul` is the one instruction the suite excludes and the `muldiv` unit carries its own proof instead. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair. Run the unit proof with `make formal MOD=muldiv`.
 
 The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
 
@@ -184,4 +184,4 @@ The `board_top` system adds the instruction and data memories as block RAMs.
 
 ### Tool versions
 
-Icarus Verilog 13.0, Verilator 5.050, Yosys 0.66, SymbiYosys 0.66 with Yices 2, sv2v 0.0.13, nextpnr-xilinx 0.8.2, the RISC-V GNU toolchain (`riscv64-elf-gcc` 16.1.0), Python 3.11, and Surfer.
+Icarus Verilog 13.0, Verilator 5.050, Yosys 0.66, SymbiYosys 0.66 driving btormc and Yices 2, sv2v 0.0.13, nextpnr-xilinx 0.8.2, the RISC-V GNU toolchain (`riscv64-elf-gcc` 16.1.0), Python 3.11, and Surfer.
