@@ -23,10 +23,18 @@ cd "$DST"
 python3 "$RVF/checks/genchecks.py" >&2
 ls checks/*.sby | grep -v cover.sby | xargs perl -i -pe 's/smtbmc yices/btor btormc/'
 
+# a failing check must fail the run
+perl -i -ne 'print unless /^expect /' checks/*.sby
+
 if [ "${1:-}" = "--list" ]; then
   ls checks/*.sby | xargs -n1 basename | sed 's/\.sby$//'
 elif [ "$#" -gt 0 ]; then
-  for c in "$@"; do sby -f "checks/$c.sby" || true; done
+  failed=""
+  for c in "$@"; do sby -f "checks/$c.sby" || failed="$failed $c"; done
+  if [ -n "$failed" ]; then
+    echo "FAILED:$failed" >&2
+    exit 1
+  fi
 else
   make -j"$(getconf _NPROCESSORS_ONLN)" -C checks
 fi
