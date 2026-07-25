@@ -128,6 +128,12 @@ module datapath
   logic                              stall;
   logic                              hazard_stall;
   logic                              flush;
+  logic                              ifid_en;
+  logic                              idex_en;
+  logic                              exmem_en;
+  logic                              memwb_en;
+  logic                              idex_bubble;
+  logic                              exmem_bubble;
   logic                   [     1:0] forward_a;
   logic                   [     1:0] forward_b;
   logic                   [     1:0] fwd_a;
@@ -192,7 +198,7 @@ module datapath
       .RESET_ADDR('h0000_0000)
   ) pc_inst (
       .clk(clk),
-      .core_en(core_en && (!stall || flush)),
+      .core_en(core_en && (ifid_en || flush)),
       .rst_n(rst_n),
       .pc_next(pc_next),
       .pc_q(pc)
@@ -214,7 +220,7 @@ module datapath
       predict_taken_id  <= 1'b0;
       predict_target_id <= '0;
       bp_index_id       <= '0;
-    end else if (core_en && !stall) begin
+    end else if (core_en && ifid_en) begin
       instr_id          <= instr;
       pc_id             <= pc;
       pc_plus4_id       <= pc_plus4;
@@ -285,11 +291,11 @@ module datapath
       is_muldiv_ex     <= 1'b0;
       predict_taken_ex <= 1'b0;
     end else if (core_en) begin
-      if (muldiv_hold) begin  // Latch operands
+      if (!idex_en) begin  // Latch operands
         rs1_data_ex <= forwarded_rs1;
         rs2_data_ex <= forwarded_rs2;
       end else begin
-        predict_taken_ex  <= (predict_taken_id && !stall && !flush);
+        predict_taken_ex  <= (predict_taken_id && !idex_bubble);
         predict_target_ex <= predict_target_id;
         bp_index_ex       <= bp_index_id;
         pc_ex            <= pc_id;
@@ -299,24 +305,24 @@ module datapath
         alu_a_src_ex     <= alu_a_src;
         pc_target_src_ex <= pc_target_src;
         alu_src_ex       <= alu_src;
-        result_src_ex    <= (stall || flush) ? 2'd0 : result_src;
+        result_src_ex    <= idex_bubble ? 2'd0 : result_src;
         alu_ctrl_ex      <= alu_ctrl;
         rs1_data_ex      <= rs1_data;
         rs2_data_ex      <= rs2_data;
-        reg_write_ex     <= (reg_write && !stall && !flush);
-        mem_write_ex     <= (mem_write_dec && !stall && !flush);
-        rd_ex            <= (stall || flush) ? 5'd0 : instr_id[11:7];
+        reg_write_ex     <= (reg_write && !idex_bubble);
+        mem_write_ex     <= (mem_write_dec && !idex_bubble);
+        rd_ex            <= idex_bubble ? 5'd0 : instr_id[11:7];
         rs1_ex           <= instr_id[19:15];
         rs2_ex           <= instr_id[24:20];
-        branch_ex        <= (branch && !stall && !flush);
-        jump_ex          <= (jump && !stall && !flush);
+        branch_ex        <= (branch && !idex_bubble);
+        jump_ex          <= (jump && !idex_bubble);
         instr_ex         <= instr_id;
-        csr_access_ex    <= (csr_access && !stall && !flush);
-        is_ecall_ex      <= (is_ecall && !stall && !flush);
-        is_ebreak_ex     <= (is_ebreak && !stall && !flush);
-        is_mret_ex       <= (is_mret && !stall && !flush);
-        exc_illegal_ex   <= (exc_illegal && !stall && !flush);
-        is_muldiv_ex     <= (is_muldiv && !stall && !flush);
+        csr_access_ex    <= (csr_access && !idex_bubble);
+        is_ecall_ex      <= (is_ecall && !idex_bubble);
+        is_ebreak_ex     <= (is_ebreak && !idex_bubble);
+        is_mret_ex       <= (is_mret && !idex_bubble);
+        exc_illegal_ex   <= (exc_illegal && !idex_bubble);
+        is_muldiv_ex     <= (is_muldiv && !idex_bubble);
         muldiv_op_ex     <= muldiv_op;
       end
     end
@@ -330,13 +336,13 @@ module datapath
       valid_mem <= 1'b0;
       valid_wb  <= 1'b0;
     end else if (core_en) begin
-      if (muldiv_hold) begin
+      if (exmem_bubble) begin
         valid_mem <= 1'b0;
         valid_wb  <= valid_mem;
       end else begin
         if (flush) valid_id <= 1'b0;
-        else if (!stall) valid_id <= 1'b1;
-        valid_ex  <= valid_id && !stall && !flush;
+        else if (ifid_en) valid_id <= 1'b1;
+        valid_ex  <= valid_id && !idex_bubble;
         valid_mem <= valid_ex;
         valid_wb  <= valid_mem;
       end
@@ -372,6 +378,13 @@ module datapath
 
   assign muldiv_hold = is_muldiv_ex && !muldiv_done;
   assign stall = hazard_stall || muldiv_hold;
+
+  assign ifid_en = !stall;
+  assign idex_en = !muldiv_hold;
+  assign exmem_en = 1'b1;
+  assign memwb_en = 1'b1;
+  assign idex_bubble = hazard_stall || flush;
+  assign exmem_bubble = muldiv_hold;
 
   // Operands hold once the muldiv samples them
   assign fwd_hold = muldiv_hold && !muldiv_start;
@@ -567,10 +580,10 @@ module datapath
       reg_write_mem <= 1'b0;
       mem_write_mem <= 1'b0;
     end else if (core_en) begin
-      if (muldiv_hold) begin  // Inject NOP
+      if (exmem_bubble) begin  // Inject NOP
         reg_write_mem <= 1'b0;
         mem_write_mem <= 1'b0;
-      end else begin
+      end else if (exmem_en) begin
         alu_result_mem <= result_ex;
         pc_plus4_mem   <= pc_plus4_ex;
         write_data_mem <= forwarded_rs2;
@@ -628,7 +641,7 @@ module datapath
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       reg_write_wb <= 1'b0;
-    end else if (core_en) begin
+    end else if (core_en && memwb_en) begin
       result_src_wb <= result_src_mem;
       alu_result_wb <= alu_result_mem;
       pc_plus4_wb   <= pc_plus4_mem;
