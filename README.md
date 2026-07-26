@@ -2,146 +2,74 @@
 
 [![CI](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml/badge.svg)](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml)
 
-A five-stage pipelined RV32IM processor with hardware hazard resolution, a gshare branch predictor, and machine-mode traps that runs CoreMark on a Basys 3, written in SystemVerilog.
+A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a Digilent Basys 3, with:
 
-The core executes the RV32I base integer instruction set together with the M extension for multiply and divide, across the classic instruction fetch (IF), instruction decode (ID), execute (EX), memory (MEM), and write-back (WB) stages, retiring one instruction per clock in steady state. Pipeline registers carry the datapath and control state across each stage boundary, the `control_unit` decodes in ID, the register file supplies operands, the `alu` computes in EX, and the ALU result, a multiply or divide result, a loaded word, a CSR value, or the return address writes back in WB.
-
-The `hazard_unit` preserves correct execution across the overlapped instructions. An instruction whose operand is still in flight receives the value forwarded from the MEM or WB stage instead of the stale register file copy. A load followed immediately by a dependent instruction cannot forward in time, so the unit inserts a one-cycle stall.
-
-A gshare predictor and a branch target buffer take the penalty off correctly predicted branches. At fetch a global history register hashes with the program counter to index a table of two-bit saturating counters for the direction, and the target buffer supplies the address, so a predicted-taken branch redirects the next fetch in the same cycle. The prediction travels down the pipeline to EX, where the resolved direction and target check it. A correct prediction retires the branch with no bubble, and only a misprediction flushes the two younger instructions and restarts the fetch from the correct address.
-
-The `muldiv` unit implements the M extension. Multiply maps to a DSP block, and divide runs an iterative shift-subtract state machine that produces one quotient bit per clock. The operation holds in EX until its result is ready, since a multi-cycle result cannot retire in a single step. A shared busy handshake freezes fetch, decode, and execute for the wait. The instructions already ahead in memory and write-back keep retiring while a bubble fills the slot behind, so a divide stalls only the younger instructions.
-
-The `csr` block holds the machine-mode registers and the trap unit. On an exception or an enabled timer interrupt the trap unit records the faulting program counter in `mepc` and the reason in `mcause`, redirects the fetch to the `mtvec` handler, and cancels the younger instructions behind the trapping one. An `mret` restores the interrupt-enable stack and returns to `mepc`. The `clint` block raises the timer interrupt once its memory-mapped `mtime` reaches `mtimecmp`.
-
-The core, testbenches, and formal proofs were written from scratch. The board system reuses the formally proven `uart_tx` and `uart_rx` from the standalone UART project. A riscv-formal proof under SymbiYosys checks the pipelined core against the RISC-V specification, and CoreMark validates the full system on real hardware.
+- Operands forwarded from MEM and WB, with a one-cycle interlock on the load-use hazard.
+- A gshare predictor and branch target buffer that redirect fetch ahead of resolution in EX.
+- Multiply on a DSP block and divide on an iterative shift-subtract unit.
+- A direct-mapped instruction cache and a four-way set-associative write-back data cache with tree pseudo-LRU replacement, both with four-word lines fronting main memory.
+- Machine mode covering traps, `mtvec` dispatch, the CLINT timer interrupt, and the Zicsr instructions.
+- A UART bootloader that streams programs to the board, alongside memory-mapped peripherals.
 
 ![Pipelined core block diagram](docs/pipeline_block.svg)
 
-## CoreMark
+## Performance
 
-CoreMark runs on the core as a bare-metal program, timed by the `mcycle` counter and printing its report over the serial transmitter. Every result validates against the reference CRCs on the Basys 3, with each core run at the highest clock divider that closes timing and executes correctly on the board.
+### CoreMark
 
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
-| Current | 33.3 MHz | 99.37 | 2.98 |
+| Pipelined RV32IM, caches, 20-cycle memory model | 25.0 MHz | 15.61 | 0.62 |
 | [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | 99.37 | 2.98 |
 | [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
 | [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
 | [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
 
-The gshare predictor lifts the pipeline from 2.50 to 2.98 CoreMark per MHz, since a correctly predicted branch now retires without the two-cycle flush. The M extension raises the pipeline by 2.6x, from 0.96 to 2.50 CoreMark per MHz, comparing hardware multiply and divide against a software build of the same benchmark on one bitstream. The single-cycle baseline resolves each instruction in a single clock and incurs no hazard penalty, so it retires more work per cycle than the integer pipeline, but its longer critical path limits it to 20 MHz. The pipeline more than offsets that per-cycle deficit with a 1.67x higher clock, and the hardware multiplier compounds the advantage to roughly 3x the single-cycle baseline.
+### Memory hierarchy
+
+The Basys 3 carries no DRAM. `mem_delay` stands in for one, a synthesizable main memory parameterized by latency and completing through a ready handshake. The cache rows below are measured on the board at a divide-by-4 core enable, with ticks and hit rates identical to simulation. A 200-iteration run validates the CRCs on hardware over 12.8 seconds.
+
+| Configuration | Total ticks | Iterations/sec | Instruction cache | Data cache |
+|---|---|---|---|---|
+| No caches, single-cycle memory | 845,818 | 39.41 | | |
+| Caches, 1-cycle memory | 1,597,690 | 20.86 | 99.8% hit | 99.6% hit |
+| Caches, 20-cycle memory | 1,610,380 | 20.70 | 99.8% hit, 2.04 cycle AMAT | 99.6% hit, 2.08 cycle AMAT |
+
+A 20x increase in memory latency costs 0.8%, against roughly 21 cycles for an uncached access. Hit latency accounts for the remaining gap to the uncached figure, since both controllers spend a cycle in `IDLE` before `COMPARE`.
 
 ## Verification
 
-The riscv-formal proof wraps `riscv_pipelined` in the RISC-V Formal Interface and checks every retired instruction against the RV32I base specification and the divide instructions of the M extension under SymbiYosys, together with the machine-mode traps, the Zicsr read and write path, and the misaligned instruction, load, and store cases. Run the proof with `bash formal/rvfi/run.sh`.
+| Method | Scope |
+|--------|-------|
+| riscv-formal under SymbiYosys | Every retired instruction against RV32I + M divides, machine-mode traps, Zicsr, misaligned access |
+| SymbiYosys unit proofs | `muldiv` products + handshake, `csr` interrupt path by k-induction, `hazard_unit` forwarding + stall + flush |
+| Spike lockstep co-simulation | Every retired instruction of a directed RV32IM program + a randomized regression |
+| Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
+| Basys 3 | Full system integration, CoreMark CRCs on hardware |
 
-A 32-bit multiplier is beyond in-core bounded model checking, so `insn_mul` is the one instruction the suite excludes and the `muldiv` unit carries its own proof instead. `formal/muldiv.sby` proves the low and high products, the busy handshake, and the divide-by-zero and signed-overflow results against the specification for every operand pair. Run the unit proof with `make formal MOD=muldiv`.
+A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties the timer interrupt low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, and `mret` restores `MIE` from `MPIE`.
 
-The riscv-formal wrapper ties the timer interrupt low, so a separate proof, `formal/irq.sby`, leaves the interrupt unconstrained over the `csr` trap logic and proves the interrupt path by k-induction. It shows that an interrupt is taken only when pending with both `mstatus.MIE` and `mie.MTIE` set, never while masked, that a simultaneous exception outranks it, that `mepc`, `mcause`, and `mstatus.MPIE` are correct on entry, and that `mret` restores `MIE` from `MPIE`. The `hazard_unit` carries its own SymbiYosys proof that the forwarding selects, the load-use stall, and the flush match the pipeline's register-address comparison for every operand and stage combination. Run either with `make formal MOD=irq`.
+## Implementation
 
-A Spike lockstep co-simulation cross-checks the dynamic behavior the bounded proofs cannot reach. `tests/cosim.py` runs the core and Spike in step over a directed RV32IM program and a randomized regression, and diffs every retired instruction against the golden ISA model. Run it with `make cosim PROG=cosim_m`.
+Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xilinx.
 
-Every module has a self-checking testbench, and directed pipeline programs drive the forwarding, load-use, branch-flush, trap, and timer paths through the assembled core. `tb/freertos_boot_tb.sv` boots the FreeRTOS kernel on the core in simulation, and `tb/coremark_boot_tb.sv` streams the CoreMark image through the bootloader and validates its checksums. The testbenches, the formal proofs, the Spike co-simulation, and both benchmark builds run on every push in CI, and the full system runs on a Basys 3, where CoreMark validates its result checksums on real hardware.
+| Module | LUTs | Flip-flops | Block RAMs (18 Kb each) |
+|--------|------|------------|-------------------------|
+| `hazard_unit` | 23 | 0 | 0 |
+| `gshare` | 46 | 10 | 0 |
+| `btb` | 112 | 64 | 0 |
+| `icache` \* | 216 | 256 | 19 |
+| `alu` | 492 | 0 | 0 |
+| `muldiv` | 567 | 240 | 0 |
+| `mem_delay` \* | 155 | 148 | 32 |
+| `csr` | 736 | 383 | 0 |
+| `regfile` | 1050 | 992 | 0 |
+| `dcache` \* | 5176 | 1284 | 0 |
+| `riscv_pipelined` | 3778 | 2419 | 0 |
 
-## Results
-
-A load followed by a dependent instruction stalls the pipeline for one cycle, and the loaded word is then forwarded into EX.
-
-![Load-use stall waveform](docs/loaduse_waveform.svg)
-
-A mispredicted branch resolves in EX and flushes the two wrong-path instructions behind it, so their register writes never commit.
-
-![Taken-branch flush waveform](docs/flush_waveform.svg)
-
-## Instructions
-
-| Format | Instructions |
-|--------|--------------|
-| Register (`OP`) | `add` `sub` `sll` `slt` `sltu` `xor` `srl` `sra` `or` `and` |
-| Multiply-divide (`OP`) | `mul` `mulh` `mulhsu` `mulhu` `div` `divu` `rem` `remu` |
-| Immediate (`OP-IMM`) | `addi` `slti` `sltiu` `xori` `ori` `andi` `slli` `srli` `srai` |
-| Load (`LOAD`) | `lb` `lbu` `lh` `lhu` `lw` |
-| Store (`STORE`) | `sb` `sh` `sw` |
-| Branch (`BRANCH`) | `beq` `bne` `blt` `bge` `bltu` `bgeu` |
-| Jump | `jal` `jalr` |
-| Upper immediate | `lui` `auipc` |
-| System | `ecall` `ebreak` `mret` |
-| Zicsr | `csrrw` `csrrs` `csrrc` `csrrwi` `csrrsi` `csrrci` |
-
-The `FENCE` instruction is a no-op, and the core runs entirely in machine mode.
-
-## Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `XLEN` | `32` | Data and register width |
-| `DEPTH` | `64` | Memory depth in words, raised to `16384` for the Basys 3 system |
-| `ClkDiv` | `32` | Board clock-enable divisor, 3 on the validated bitstream |
-| `GhistLen` | `10` | gshare global-history and pattern-history-table index width |
-| `BtbIdxLen` | `6` | Branch target buffer index width |
-
-## Interface
-
-| Signal | Direction | Width | Description |
-|--------|-----------|-------|-------------|
-| `clk` | in | 1 | System clock |
-| `core_en` | in | 1 | Clock enable that advances the pipeline one step |
-| `rst_n` | in | 1 | Synchronous active-low reset |
-| `instr` | in | `XLEN` | Fetched instruction word |
-| `read_data` | in | `XLEN` | Load data returned from memory |
-| `timer_irq` | in | 1 | CLINT machine-timer interrupt |
-| `pc` | out | `XLEN` | Program counter of the fetched instruction |
-| `mem_write` | out | 1 | Data memory write strobe |
-| `alu_result` | out | `XLEN` | ALU output of the MEM-stage instruction |
-| `write_data` | out | `XLEN` | Raw store operand from the register file |
-| `store_wstrb` | out | 4 | Per-byte write strobe for the store |
-| `store_data` | out | `XLEN` | Store data aligned to the addressed byte lanes |
-| `mem_addr` | out | `XLEN` | Data memory address |
-
-## Hazards
-
-| Hazard | Resolution |
-|--------|------------|
-| Operand still in MEM or WB | Forward into the EX operand muxes |
-| Load followed by a dependent instruction | One-cycle stall, then forward |
-| Mispredicted branch or jump, resolved in EX | Flush the two younger instructions and refetch |
-| Multiply or divide occupying EX | Freeze fetch through execute and drain the instructions ahead until the result retires |
-
-## Machine mode
-
-The core traps illegal instructions, `ecall`, `ebreak`, and misaligned instruction, load, and store addresses, and takes the CLINT timer interrupt when `mstatus` and `mie` enable it.
-
-| CSR | Purpose |
-|-----|---------|
-| `mstatus` | Current and prior interrupt-enable bits |
-| `mtvec` | Trap handler base address |
-| `mepc` | Faulting program counter |
-| `mcause` | Trap cause code |
-| `mtval` | Faulting address or value |
-| `mie` + `mip` | Interrupt enable and pending |
-| `mscratch` | Handler scratch word |
-| `mcycle` + `minstret` | 64-bit cycle and retired-instruction counters |
-
-## System-on-chip
-
-`board_top` wraps the core for the Digilent Basys 3. Instruction fetch and data access run on separate block RAMs clocked at the full 100 MHz, and the core advances on a divided clock enable, so each core cycle spans several memory clocks. A serial bootloader receives a word count and the program body over UART, writes the words into memory while holding the core in reset, then releases the core at address zero.
-
-![board_top system block diagram](docs/board_top_block.svg)
-
-| Region | Address | Access |
-|--------|---------|--------|
-| LEDs | `0x0300_0000` | read + write |
-| Switches | `0x0300_0004` | read |
-| CLINT `mtime` and `mtimecmp` | `0x0200_xxxx` | read + write |
-| UART transmit data | `0x0400_0000` | write |
-| UART transmit ready | `0x0400_0004` | read |
-
-A store to the transmit register sends one byte, and polling the ready register before each store lets a program print over the serial line.
+\* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since the open flow drops data mapped onto wide-port parity pins. The data cache's shallow arrays use distributed RAM, and replacement state stays in flops.
 
 ## Building and running
-
-Every module builds from the top-level Makefile.
 
 ```
 make MOD=alu                                # run a module's testbench
@@ -150,37 +78,12 @@ make wave MOD=board_top                     # run the testbench and open the wav
 make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
 make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
-make hex PROG=pl_loaduse                    # assemble tests/pl_loaduse.s to a hex image
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
-make -C sw/coremark all                     # build the CoreMark image
-make -C sw/coremark ARCH=rv32im_zicsr all   # build it with hardware multiply and divide
-./build_board.sh 3 flash                    # build the bitstream at divide-by-3 and flash
+./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
 ./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
 
-The board flow runs sv2v, Yosys, and nextpnr-xilinx. `build_board.sh` preserves the `pc_plus4` nets through synthesis with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). The RTL is correct in simulation and formal, and `gate_check.sh` re-verifies the workaround after any toolchain change.
-
-## Synthesis
-
-Synthesized for the Digilent Basys 3 (Xilinx Artix-7). sv2v first converts the SystemVerilog to Verilog-2005, since Yosys cannot parse the package-scoped port types.
-
-| Module | LUTs | Flip-flops | Carry cells |
-|--------|------|------------|-------------|
-| `pc` | 0 | 32 | 0 |
-| `alu_decoder` | 5 | 0 | 0 |
-| `hazard_unit` | 23 | 0 | 0 |
-| `extend` | 31 | 0 | 0 |
-| `control_unit` | 33 | 0 | 0 |
-| `gshare` | 46 | 10 | 0 |
-| `btb` | 112 | 64 | 0 |
-| `clint` | 219 | 128 | 22 |
-| `alu` | 492 | 0 | 22 |
-| `muldiv` | 567 | 240 | 81 |
-| `csr` | 736 | 383 | 32 |
-| `regfile` | 1050 | 992 | 0 |
-| `riscv_pipelined` | 3805 | 2385 | 151 |
-
-The `board_top` system adds the instruction and data memories as block RAMs.
+`build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.
 
 ### Tool versions
 
