@@ -8,7 +8,7 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 - A gshare predictor and branch target buffer that redirect fetch ahead of resolution in EX.
 - Multiply on a DSP block and divide on an iterative shift-subtract unit.
 - A direct-mapped instruction cache and a four-way set-associative write-back data cache with tree pseudo-LRU replacement, both with four-word lines fronting main memory.
-- Machine mode covering traps, `mtvec` dispatch, the CLINT timer interrupt, and the Zicsr instructions.
+- Machine mode covering traps, `mtvec` dispatch, the CLINT timer interrupt, an external interrupt line the UART receiver raises, and the Zicsr instructions.
 - A UART bootloader that streams programs to the board, alongside memory-mapped peripherals.
 
 ![Pipelined core block diagram](docs/pipeline_block.svg)
@@ -47,7 +47,7 @@ A 20x increase in memory latency costs 0.8%, against roughly 21 cycles for an un
 | Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
 | Basys 3 | Full system integration, CoreMark CRCs on hardware |
 
-A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties the timer interrupt low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, and `mret` restores `MIE` from `MPIE`.
+A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, a simultaneous external and timer interrupt resolves to the external one, and `mret` restores `MIE` from `MPIE`.
 
 ## Implementation
 
@@ -55,6 +55,7 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 
 | Module | LUTs | Flip-flops | Block RAMs (18 Kb each) |
 |--------|------|------------|-------------------------|
+| `uart_ctrl` | 18 | 11 | 0 |
 | `hazard_unit` | 23 | 0 | 0 |
 | `gshare` | 46 | 10 | 0 |
 | `btb` | 112 | 64 | 0 |
@@ -62,7 +63,7 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 | `alu` | 492 | 0 | 0 |
 | `muldiv` | 567 | 240 | 0 |
 | `mem_delay` \* | 155 | 148 | 32 |
-| `csr` | 736 | 383 | 0 |
+| `csr` | 810 | 382 | 0 |
 | `regfile` | 1050 | 992 | 0 |
 | `dcache` \* | 5176 | 1284 | 0 |
 | `riscv_pipelined` | 3778 | 2419 | 0 |
