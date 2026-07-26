@@ -25,6 +25,9 @@ package csr_pkg;
   localparam int Mtie = 7;
   localparam int Mtip = 7;
 
+  localparam int Meie = 11;
+  localparam int Meip = 11;
+
   // mtvec[1:0]
   localparam logic [1:0] MtvecDirect = 2'b00;  // Every trap jumps to same address
   localparam logic [1:0] MtvecVectored = 2'b01;  // Exceptions & interupts treated differently
@@ -39,6 +42,7 @@ package csr_pkg;
 
   // mcause interrupt code (mcause[XLEN-1] set)
   localparam logic [3:0] CauseMachineTimerIrq = 4'd7;
+  localparam logic [3:0] CauseMachineExternalIrq = 4'd11;
 
   // funct3
   localparam logic [2:0] Funct3Priv = 3'b000;  // PRIVileged instructions = ecall/ebreak/mret

@@ -71,6 +71,7 @@ module rvfi_wrapper (
       .instr        (instr),
       .read_data    (read_data),
       .timer_irq    (1'b0),
+      .ext_irq      (1'b0),
       .imem_ready   (imem_ready),
       .dmem_ready   (dmem_ready),
       .dmem_req     (dmem_req),

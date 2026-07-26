@@ -25,6 +25,7 @@ module top #(
       .instr      (instr),
       .read_data  (read_data),
       .timer_irq  (1'b0),
+      .ext_irq    (1'b0),
       .imem_ready(1'b1),
       .dmem_ready(1'b1),
       .dmem_req(),
