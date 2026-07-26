@@ -10,7 +10,7 @@
 #   make clean                   delete build artifacts (build/, *.vcd)
 
 # packages must compile before any module that imports them
-PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp_pkg.sv
+PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp_pkg.sv rtl/cache_pkg.sv
 RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
 TB  := tb/$(MOD)_tb.sv
 SIM := build/sim
@@ -28,13 +28,13 @@ RVFLAGS := -march=rv32im_zicsr -mabi=ilp32 -nostdlib -nostartfiles -T tests/link
 run:
 	@test -n "$(MOD)" || { echo "usage: make MOD=<module>  (e.g. MOD=alu)"; exit 1; }
 	@mkdir -p build
-	iverilog -g2012 -s $(MOD)_tb -o $(SIM) $(RTL) $(TB)
+	iverilog -g2012 -DSIM_BACKDOOR -s $(MOD)_tb -o $(SIM) $(RTL) $(TB)
 	vvp $(SIM)
 
 vsim:
 	@test -n "$(MOD)" || { echo "usage: make vsim MOD=<module>  (fast 2-state Verilator run)"; exit 1; }
 	@mkdir -p build
-	verilator --binary --timing -O3 -j 4 -Wno-fatal -Wno-WIDTH \
+	verilator --binary --timing -O3 -j 4 -DSIM_BACKDOOR -Wno-fatal -Wno-WIDTH \
 		--top-module $(MOD)_tb -Mdir $(VDIR) -o $(MOD)_vsim $(RTL) $(TB)
 	$(VDIR)/$(MOD)_vsim $(PLUSARGS)
 
@@ -49,7 +49,7 @@ prog:
 wave:
 	@test -n "$(MOD)" || { echo "usage: make wave MOD=<module>"; exit 1; }
 	@mkdir -p build
-	iverilog -g2012 -s $(MOD)_tb -o $(SIM) $(RTL) $(TB)
+	iverilog -g2012 -DSIM_BACKDOOR -s $(MOD)_tb -o $(SIM) $(RTL) $(TB)
 	-vvp $(SIM)
 	surfer $(VCD) $$(test -f $(WAVE_STATE) && echo "-s $(WAVE_STATE)") &
 
