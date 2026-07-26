@@ -83,7 +83,7 @@ python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over
 ./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
 
-`build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `abc` pass otherwise miscompiles the `jal` link path ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.
+`build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.
 
 ### Tool versions
 
