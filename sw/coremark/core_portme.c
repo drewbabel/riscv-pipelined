@@ -73,5 +73,15 @@ portable_init(core_portable *p, int *argc, char *argv[])
 void
 portable_fini(core_portable *p)
 {
+    volatile unsigned int *stats = (unsigned int *)0x05000000;
+    unsigned int ih = stats[0], im = stats[1], dh = stats[2], dm = stats[3];
+
+    ee_printf("icache hits %u misses %u\n", ih, im);
+    ee_printf("dcache hits %u misses %u\n", dh, dm);
+    if (ih + im)
+        ee_printf("icache hit rate %u/1000\n", (unsigned int)((ih * 1000ULL) / (ih + im)));
+    if (dh + dm)
+        ee_printf("dcache hit rate %u/1000\n", (unsigned int)((dh * 1000ULL) / (dh + dm)));
+
     p->portable_id = 0;
 }
