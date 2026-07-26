@@ -67,7 +67,7 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 | `dcache` \* | 5176 | 1284 | 0 |
 | `riscv_pipelined` | 3778 | 2419 | 0 |
 
-\* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since the open flow drops data mapped onto wide-port parity pins. The data cache's shallow arrays use distributed RAM, and replacement state stays in flops.
+\* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state stays in flops.
 
 ## Building and running
 

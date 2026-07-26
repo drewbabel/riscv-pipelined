@@ -77,7 +77,7 @@ module mem_delay
     end
   end
 
-  // Boot writes avoid part selects
+  // No read modify write
   assign wr_en   = boot_we || (done && req_rw_q);
   assign wr_idx  = boot_we ? boot_idx : line_idx;
   assign wr_data = boot_we ? {LineWords{boot_wdata}} : req_wdata_q;  // Boot word every slot
