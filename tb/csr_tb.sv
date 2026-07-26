@@ -23,6 +23,7 @@ module csr_tb;
   logic            exc_store_misaligned;
   logic            is_mret;
   logic            timer_irq;
+  logic            ext_irq;
   logic [Xlen-1:0] csr_rdata;
   logic            trap_taken;
   logic [Xlen-1:0] trap_vector;
@@ -55,6 +56,7 @@ module csr_tb;
       .exc_store_misaligned(exc_store_misaligned),
       .is_mret             (is_mret),
       .timer_irq           (timer_irq),
+      .ext_irq             (ext_irq),
       .csr_rdata           (csr_rdata),
       .trap_taken          (trap_taken),
       .trap_vector         (trap_vector),
@@ -126,7 +128,8 @@ module csr_tb;
     rs1_data = 0;
     zimm = 0;
     is_mret = 0;
-    timer_irq = 0;
+    timer_irq = 1'b0;
+    ext_irq   = 1'b0;
     {exc_illegal, exc_ecall, exc_ebreak} = 0;
     {exc_instr_misaligned, exc_load_misaligned, exc_store_misaligned} = 0;
     do_reset();
@@ -154,10 +157,14 @@ module csr_tb;
     #1;
     csr_access = 0;
     check("mip_mtip_masked", csr_rdata[Mtip], 1'b0);
-    timer_irq = 1;
+    check("mip_meip_masked", csr_rdata[Meip], 1'b0);
+    timer_irq = 1'b1;
+    ext_irq   = 1'b1;
     #1;
     check("mip_mtip_line", csr_rdata[Mtip], 1'b1);
-    timer_irq = 0;
+    check("mip_meip_line", csr_rdata[Meip], 1'b1);
+    timer_irq = 1'b0;
+    ext_irq   = 1'b0;
 
     // mtvec mode check
     csr_addr   = MtvecAddr;
