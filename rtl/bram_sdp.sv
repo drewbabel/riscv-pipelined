@@ -1,13 +1,13 @@
 module bram_sdp #(
     parameter int Width = 8,
     parameter int Depth = 256,
-    parameter bit Block = 1'b1,
+    parameter bit Block = 1'b1,  // 1 bram, 0 distributed
     localparam int AddrW = $clog2(Depth),
     localparam int Lanes = (Width + 7) / 8
 ) (
     input  logic             clk,
     input  logic             we,
-    input  logic [Lanes-1:0] wlane,
+    input  logic [Lanes-1:0] wlane,  // Lane strobes
     input  logic [AddrW-1:0] widx,
     input  logic [Width-1:0] wdata,
     input  logic             re,
@@ -15,12 +15,14 @@ module bram_sdp #(
     output logic [Width-1:0] rdata
 );
 
+// TB preload
 `ifdef SIM_BACKDOOR
   logic             bd_we = 1'b0;
   logic [AddrW-1:0] bd_idx;
   logic [Width-1:0] bd_data;
 `endif
 
+  // Byte lanes dodge parity pins
   for (genvar b = 0; b < Lanes; b++) begin : g_lane
     localparam int Lo = 8 * b;
     localparam int W = (Width - Lo < 8) ? Width - Lo : 8;

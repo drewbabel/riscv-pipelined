@@ -126,7 +126,7 @@ module dcache
   end
   assign write_hit = (state == COMPARE) && hit && req_rw;
 
-  // Tree names victim
+  // Bit 0 old half, 1 old of 01, 2 old of 23
   assign plru_tree = plru_mem[addr_idx];
   assign plru_way[1] = plru_tree[0];
   assign plru_way[0] = plru_tree[0] ? plru_tree[2] : plru_tree[1];

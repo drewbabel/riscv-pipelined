@@ -77,11 +77,12 @@ module mem_delay
     end
   end
 
-  // Boot lane strobes
+  // Boot writes avoid part selects
   assign wr_en   = boot_we || (done && req_rw_q);
   assign wr_idx  = boot_we ? boot_idx : line_idx;
-  assign wr_data = boot_we ? {LineWords{boot_wdata}} : req_wdata_q;
+  assign wr_data = boot_we ? {LineWords{boot_wdata}} : req_wdata_q;  // Boot word every slot
 
+  // Strobe the boot word
   always_comb begin
     for (int b = 0; b < Lanes; b++) begin
       wr_lane[b] = !boot_we || (boot_word == BlkOffLen'(b / 4));
