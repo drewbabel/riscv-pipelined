@@ -1,7 +1,10 @@
-module board_top #(
+module board_top
+  import cache_pkg::*;
+#(
     parameter int XLEN   = 32,
     parameter int DEPTH  = 16384,
-    parameter int ClkDiv = 32
+    parameter int ClkDiv = 32,
+    parameter int MemLatency = 20
 ) (
     input  logic        clk,
     input  logic        rst,
@@ -14,6 +17,7 @@ module board_top #(
   localparam logic [7:0] ClintTag = 8'h02;
   localparam logic [7:0] GpioTag = 8'h03;
   localparam logic [7:0] UartTag = 8'h04;
+  localparam logic [7:0] StatsTag = 8'h05;
 
   logic            rst_n;
   logic [XLEN-1:0] instr;
@@ -24,7 +28,6 @@ module board_top #(
   logic [XLEN-1:0] store_data;
 
   logic [XLEN-1:0] read_data;
-  logic [XLEN-1:0] mem_rdata;
   logic [XLEN-1:0] clint_rdata;
   logic [XLEN-1:0] gpio_rdata;
   logic [XLEN-1:0] uart_rdata;
@@ -44,22 +47,43 @@ module board_top #(
   logic [     7:0] rx_byte;
   logic            rx_valid_w;
 
-  logic [XLEN-1:0] mem_daddr;
-  logic [XLEN-1:0] mem_wdata;
-  logic [     3:0] mem_wstrb;
 
-  logic [XLEN-1:0] rt_addr_q;
-  logic [XLEN-1:0] rt_data_q;
-  logic [     3:0] rt_strb_q;
+  logic [XLEN-1:0] stats_rdata;
+  logic            stats_sel;
+  logic            periph_sel;
 
-  // Core-enable divider
+  logic            imem_ready;
+  logic            dmem_ready;
+  logic            dmem_req;
+  logic            dc_ready;
+  logic [XLEN-1:0] dc_rdata;
+
+  logic                ic_mem_valid;
+  logic [    XLEN-1:0] ic_mem_addr;
+  logic [LineBits-1:0] ic_mem_rdata;
+  logic                ic_mem_ready;
+
+  logic                dc_mem_valid;
+  logic                dc_mem_rw;
+  logic [    XLEN-1:0] dc_mem_addr;
+  logic [LineBits-1:0] dc_mem_wdata;
+  logic [LineBits-1:0] dc_mem_rdata;
+  logic                dc_mem_ready;
+
+  logic [31:0] ic_hits;
+  logic [31:0] ic_misses;
+  logic [31:0] dc_hits;
+  logic [31:0] dc_misses;
+
+  // Core enable divider
   localparam int CoreClkHz = 100_000_000 / ClkDiv;
+  localparam logic [$clog2(ClkDiv)-1:0] DivMax = $clog2(ClkDiv)'(ClkDiv - 1);
   logic [$clog2(ClkDiv)-1:0] div = '0;
   logic                      core_en;
-  always_ff @(posedge clk) div <= (div == ClkDiv - 1) ? '0 : div + 1'b1;
+  always_ff @(posedge clk) div <= (div == DivMax) ? '0 : div + 1'b1;
   assign core_en = (div == 0);
 
-  // Power-on reset
+  // Power on reset
   logic [3:0] por = '0;
   always_ff @(posedge clk) if (core_en && !por[3]) por <= por + 1'b1;
   assign rst_n      = por[3] & ~rst;
@@ -73,14 +97,29 @@ module board_top #(
   assign clint_sel  = mem_addr[31:24] == ClintTag;
   assign gpio_sel   = mem_addr[31:24] == GpioTag;
   assign uart_sel   = mem_addr[31:24] == UartTag;
+  assign stats_sel  = mem_addr[31:24] == StatsTag;
+  assign periph_sel = clint_sel || gpio_sel || uart_sel || stats_sel;
 
   // Peripheral read mux
   always_comb begin
     if (uart_sel) read_data = uart_rdata;
     else if (gpio_sel) read_data = gpio_rdata;
     else if (clint_sel) read_data = clint_rdata;
-    else read_data = mem_rdata;
+    else if (stats_sel) read_data = stats_rdata;
+    else read_data = dc_rdata;
   end
+
+  // Cache counters
+  always_comb begin
+    case (mem_addr[3:2])
+      2'd0: stats_rdata = ic_hits;
+      2'd1: stats_rdata = ic_misses;
+      2'd2: stats_rdata = dc_hits;
+      default: stats_rdata = dc_misses;
+    endcase
+  end
+
+  assign dmem_ready = periph_sel ? 1'b1 : dc_ready;
 
   // Serial transmit register
   assign uart_rdata = {31'b0, tx_ready};
@@ -92,22 +131,6 @@ module board_top #(
   always_ff @(posedge clk) begin
     if (!core_rst_n) led_reg <= '0;
     else if (core_en && gpio_sel && !mem_addr[2] && |store_wstrb) led_reg <= store_data[15:0];
-  end
-
-  // Registered store path
-  always_ff @(posedge clk) begin
-    rt_addr_q <= mem_addr;
-    rt_data_q <= store_data;
-    rt_strb_q <= (clint_sel || gpio_sel || uart_sel) ? 4'b0 : store_wstrb;
-  end
-
-  // Boot write mux
-  assign mem_daddr = loading ? boot_waddr : rt_addr_q;
-  assign mem_wdata = loading ? boot_wdata : rt_data_q;
-  always_comb begin
-    if (!loading) mem_wstrb = rt_strb_q;
-    else if (boot_we) mem_wstrb = 4'hF;
-    else mem_wstrb = 4'b0;
   end
 
   uart_rx #(
@@ -160,6 +183,9 @@ module board_top #(
       .instr      (instr),
       .read_data  (read_data),
       .timer_irq  (timer_irq),
+      .imem_ready (imem_ready),
+      .dmem_ready (dmem_ready),
+      .dmem_req   (dmem_req),
       .pc         (pc),
       .mem_write  (),
       .alu_result (),
@@ -169,33 +195,83 @@ module board_top #(
       .mem_addr   (mem_addr)
   );
 
-  // Split fetch data mem
-  mem #(
-      .XLEN (XLEN),
-      .DEPTH(DEPTH)
-  ) imem_inst (
-      .clk    (clk),
-      .core_en(core_en),
-      .iaddr  (pc),
-      .instr  (instr_raw),
-      .wstrb  (loading ? (boot_we ? 4'hF : 4'b0) : 4'b0),
-      .daddr  (boot_waddr),
-      .wdata  (boot_wdata),
-      .rdata  ()
+  icache #(
+      .XLEN(XLEN)
+  ) icache_inst (
+      .clk       (clk),
+      .core_en   (core_en),
+      .rst_n     (core_rst_n),
+      .cpu_valid (1'b1),
+      .cpu_addr  (pc),
+      .cpu_rdata (instr_raw),
+      .cpu_ready (imem_ready),
+      .mem_valid (ic_mem_valid),
+      .mem_addr  (ic_mem_addr),
+      .mem_rdata (ic_mem_rdata),
+      .mem_ready (ic_mem_ready),
+      .hit_count (ic_hits),
+      .miss_count(ic_misses)
   );
 
-  mem #(
-      .XLEN (XLEN),
-      .DEPTH(DEPTH)
+  dcache #(
+      .XLEN(XLEN)
+  ) dcache_inst (
+      .clk       (clk),
+      .core_en   (core_en),
+      .rst_n     (core_rst_n),
+      .cpu_valid (dmem_req && !periph_sel),
+      .cpu_rw    (|store_wstrb),
+      .cpu_addr  (mem_addr),
+      .cpu_wdata (store_data),
+      .cpu_wstrb (store_wstrb),
+      .cpu_rdata (dc_rdata),
+      .cpu_ready (dc_ready),
+      .mem_valid (dc_mem_valid),
+      .mem_rw    (dc_mem_rw),
+      .mem_addr  (dc_mem_addr),
+      .mem_wdata (dc_mem_wdata),
+      .mem_rdata (dc_mem_rdata),
+      .mem_ready (dc_mem_ready),
+      .hit_count (dc_hits),
+      .miss_count(dc_misses)
+  );
+
+  mem_delay #(
+      .XLEN   (XLEN),
+      .DEPTH  (DEPTH),
+      .Latency(MemLatency)
+  ) imem_inst (
+      .clk       (clk),
+      .core_en   (core_en),
+      .rst_n     (rst_n),
+      .req_valid (ic_mem_valid),
+      .req_rw    (1'b0),
+      .req_addr  (ic_mem_addr),
+      .req_wdata ('0),
+      .resp_rdata(ic_mem_rdata),
+      .resp_ready(ic_mem_ready),
+      .boot_we   (loading && boot_we),
+      .boot_addr (boot_waddr),
+      .boot_wdata(boot_wdata)
+  );
+
+  mem_delay #(
+      .XLEN   (XLEN),
+      .DEPTH  (DEPTH),
+      .Latency(MemLatency)
   ) dmem_inst (
-      .clk    (clk),
-      .core_en(core_en),
-      .iaddr  ('0),
-      .instr  (),
-      .wstrb  (mem_wstrb),
-      .daddr  (mem_daddr),
-      .wdata  (mem_wdata),
-      .rdata  (mem_rdata)
+      .clk       (clk),
+      .core_en   (core_en),
+      .rst_n     (rst_n),
+      .req_valid (dc_mem_valid),
+      .req_rw    (dc_mem_rw),
+      .req_addr  (dc_mem_addr),
+      .req_wdata (dc_mem_wdata),
+      .resp_rdata(dc_mem_rdata),
+      .resp_ready(dc_mem_ready),
+      .boot_we   (loading && boot_we),
+      .boot_addr (boot_waddr),
+      .boot_wdata(boot_wdata)
   );
 
   clint #(
