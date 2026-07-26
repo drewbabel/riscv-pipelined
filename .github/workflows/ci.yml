@@ -2,6 +2,10 @@ name: CI
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   testbench-list:
     runs-on: ubuntu-latest
@@ -111,11 +115,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install RISC-V toolchain
+      - name: Install Verilator and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
           sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          sudo apt-get install -y verilator gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
       - name: Alias toolchain to riscv64-elf-*
         run: |
           for t in gcc objcopy; do
@@ -123,16 +127,18 @@ jobs:
           done
       - name: Build CoreMark image
         run: make -C sw/coremark all
+      - name: Boot CoreMark through the caches
+        run: make vsim MOD=coremark_boot
 
   freertos:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Icarus Verilog and RISC-V toolchain
+      - name: Install Verilator and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
           sudo apt-get update
-          sudo apt-get install -y iverilog gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+          sudo apt-get install -y verilator gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
       - name: Alias toolchain to riscv64-elf-*
         run: |
           for t in gcc objcopy; do
@@ -145,7 +151,7 @@ jobs:
       - name: Build FreeRTOS demo image
         run: make -C sw/freertos all
       - name: Run FreeRTOS queue demo testbench
-        run: make MOD=freertos_boot
+        run: make vsim MOD=freertos_boot
 
   cosim:
     runs-on: ubuntu-latest

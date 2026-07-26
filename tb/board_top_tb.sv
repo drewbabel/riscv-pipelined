@@ -15,10 +15,10 @@ module board_top_tb ();
   localparam int CoreClkHz = FastClkHz / ClkDiv;
   localparam int BaudRate = 28_800;
 
-  // Bit period in fast clocks, core samples at CoreClkHz
+  // Bit period
   localparam int ClksPerBit = (FastClkHz + BaudRate / 2) / BaudRate;
 
-  logic [31:0] prog[8];
+  logic [31:0] prog[9];
 
   always #5 clk = ~clk;
 
@@ -71,18 +71,20 @@ module board_top_tb ();
     $finish;
   endtask  // Automatic
 
-  // Round-trip a word through mem to the LEDs
+  // Word round trip
   initial begin
     $dumpfile("board_top_tb.vcd");
     $dumpvars(0, board_top_tb);
     $readmemh("tests/memtest.hex", prog);
+    if ($isunknown(prog[0]) || prog[0] == 32'h0)
+      $fatal(1, "memtest.hex missing or empty, run make hex PROG=memtest");
     do_reset();
 
-    send_word(32'd8);
+    send_word(32'd9);
     foreach (prog[i]) send_word(prog[i]);
 
     wait (dut.loading == 1'b0);
-    repeat (200) @(posedge clk);
+    repeat (60_000) @(posedge clk);
     check("led", led, 16'hABCD);
     verdict();
   end

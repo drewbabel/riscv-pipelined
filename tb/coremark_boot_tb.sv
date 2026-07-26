@@ -1,7 +1,10 @@
 module coremark_boot_tb ();
+
+  import cache_pkg::*;
   localparam int DEPTH = 16384;
   localparam int FastClkHz = 100_000_000;
   localparam int ClkDiv = 32;
+  localparam int MemLat = 20;
   localparam int CoreClkHz = FastClkHz / ClkDiv;
   localparam int BaudRate = 28_800;
   localparam int ClksPerBit = (FastClkHz + BaudRate / 2) / BaudRate;
@@ -11,11 +14,14 @@ module coremark_boot_tb ();
   logic [15:0] sw, led;
   logic uart_rx = 1, uart_tx;
   logic [31:0] img[DEPTH];
+  logic [LineBits-1:0] pline;
 
   always #5 clk = ~clk;
 
   board_top #(
-      .DEPTH(DEPTH)
+      .DEPTH(DEPTH),
+      .ClkDiv(ClkDiv),
+      .MemLatency(MemLat)
   ) dut (
       .clk    (clk),
       .rst    (rst),
@@ -53,19 +59,25 @@ module coremark_boot_tb ();
   endtask  // Automatic
 
   initial begin
+    rst = 1;
     for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;
     $readmemh("sw/coremark/coremark_sim.hex", img);
-    #1;  // after mem init
-    for (int k = 0; k < DEPTH; k++) begin
-      dut.imem_inst.g_lane[0].bmem[k] = img[k][7:0];
-      dut.imem_inst.g_lane[1].bmem[k] = img[k][15:8];
-      dut.imem_inst.g_lane[2].bmem[k] = img[k][23:16];
-      dut.imem_inst.g_lane[3].bmem[k] = img[k][31:24];
-      dut.dmem_inst.g_lane[0].bmem[k] = img[k][7:0];
-      dut.dmem_inst.g_lane[1].bmem[k] = img[k][15:8];
-      dut.dmem_inst.g_lane[2].bmem[k] = img[k][23:16];
-      dut.dmem_inst.g_lane[3].bmem[k] = img[k][31:24];
+    if (img[0] == 32'h0)
+      $fatal(1, "coremark_sim.hex missing or empty, run make -C sw/coremark all");
+    #1;  // After mem init
+    for (int l = 0; l < DEPTH / LineWords; l++) begin
+      for (int w = 0; w < LineWords; w++) pline[32*w+:32] = img[l*LineWords+w];
+      @(negedge clk);
+      dut.imem_inst.u_line.bd_idx  = l;
+      dut.imem_inst.u_line.bd_data = pline;
+      dut.imem_inst.u_line.bd_we   = 1'b1;
+      dut.dmem_inst.u_line.bd_idx  = l;
+      dut.dmem_inst.u_line.bd_data = pline;
+      dut.dmem_inst.u_line.bd_we   = 1'b1;
     end
+    @(negedge clk);
+    dut.imem_inst.u_line.bd_we = 1'b0;
+    dut.dmem_inst.u_line.bd_we = 1'b0;
     rst = 1;
     sw  = 0;
     repeat (2) @(posedge clk);
@@ -85,7 +97,7 @@ module coremark_boot_tb ();
 
   // Watchdog
   initial begin
-    repeat (400_000_000) @(posedge clk);
+    repeat (2_000_000_000) @(posedge clk);
     $fatal(1, "TIMEOUT before CoreMark completion");
   end
 endmodule

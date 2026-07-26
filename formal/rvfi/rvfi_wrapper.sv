@@ -7,6 +7,10 @@ module rvfi_wrapper (
   // Free solver inputs
   (* keep *)`rvformal_rand_reg [31:0] instr;
   (* keep *)`rvformal_rand_reg [31:0] read_data;
+  (* keep *)`rvformal_rand_reg        imem_ready;
+  (* keep *)`rvformal_rand_reg        dmem_ready;
+
+  (* keep *)logic                     dmem_req;
 
   (* keep *)logic              [31:0] pc;
   (* keep *)logic              [31:0] alu_result;
@@ -44,6 +48,22 @@ module rvfi_wrapper (
   (* keep *)logic              [31:0] dbg_mcycleh;
   (* keep *)logic              [31:0] dbg_minstreth;
 
+  // Bounded stalls
+  reg                [ 2:0] imem_stall_cnt = 0;
+  reg                [ 2:0] dmem_stall_cnt = 0;
+
+  always @(posedge clock) begin
+    if (reset || imem_ready) imem_stall_cnt <= 0;
+    else imem_stall_cnt <= imem_stall_cnt + 1;
+    if (reset || dmem_ready || !dmem_req) dmem_stall_cnt <= 0;
+    else dmem_stall_cnt <= dmem_stall_cnt + 1;
+  end
+
+  always_comb begin
+    assume (imem_stall_cnt < 3'd6);
+    assume (dmem_stall_cnt < 3'd6);
+  end
+
   riscv_pipelined uut (
       .clk          (clock),
       .core_en      (1'b1),
@@ -51,6 +71,9 @@ module rvfi_wrapper (
       .instr        (instr),
       .read_data    (read_data),
       .timer_irq    (1'b0),
+      .imem_ready   (imem_ready),
+      .dmem_ready   (dmem_ready),
+      .dmem_req     (dmem_req),
       .pc           (pc),
       .mem_write    (mem_write),
       .alu_result   (alu_result),
@@ -133,7 +156,7 @@ module rvfi_wrapper (
     end
   end
 
-  // Shadow CSR to retirement
+  // CSR retirement shadow
   logic [31:0] mscratch_pre, mstatus_pre, mtvec_pre, mepc_pre, mcause_pre;
   logic [31:0] mtval_pre, mie_pre, mip_pre, mcycle_pre, minstret_pre;
   logic [31:0] mcycleh_pre, minstreth_pre;
@@ -176,7 +199,8 @@ module rvfi_wrapper (
   logic is_mscratch;
   assign is_mscratch = csr_op && dbg_insn[31:20] == 12'h340;
   assign rvfi_csr_mscratch_rmask = is_mscratch ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mscratch_wmask = (mscratch_pre != mscratch_post) ? 32'hFFFFFFFF : (is_mscratch ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mscratch_wmask =
+      (mscratch_pre != mscratch_post) ? 32'hFFFFFFFF : (is_mscratch ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mscratch_rdata = mscratch_pre;
   assign rvfi_csr_mscratch_wdata = mscratch_post;
 `endif
@@ -184,7 +208,8 @@ module rvfi_wrapper (
   logic is_mstatus;
   assign is_mstatus = csr_op && dbg_insn[31:20] == 12'h300;
   assign rvfi_csr_mstatus_rmask = is_mstatus ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mstatus_wmask = (mstatus_pre != mstatus_post) ? 32'hFFFFFFFF : (is_mstatus ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mstatus_wmask =
+      (mstatus_pre != mstatus_post) ? 32'hFFFFFFFF : (is_mstatus ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mstatus_rdata = mstatus_pre;
   assign rvfi_csr_mstatus_wdata = mstatus_post;
 `endif
@@ -192,7 +217,8 @@ module rvfi_wrapper (
   logic is_mtvec;
   assign is_mtvec = csr_op && dbg_insn[31:20] == 12'h305;
   assign rvfi_csr_mtvec_rmask = is_mtvec ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mtvec_wmask = (mtvec_pre != mtvec_post) ? 32'hFFFFFFFF : (is_mtvec ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mtvec_wmask =
+      (mtvec_pre != mtvec_post) ? 32'hFFFFFFFF : (is_mtvec ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mtvec_rdata = mtvec_pre;
   assign rvfi_csr_mtvec_wdata = mtvec_post;
 `endif
@@ -200,7 +226,8 @@ module rvfi_wrapper (
   logic is_mepc;
   assign is_mepc = csr_op && dbg_insn[31:20] == 12'h341;
   assign rvfi_csr_mepc_rmask = is_mepc ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mepc_wmask = (mepc_pre != mepc_post) ? 32'hFFFFFFFF : (is_mepc ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mepc_wmask =
+      (mepc_pre != mepc_post) ? 32'hFFFFFFFF : (is_mepc ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mepc_rdata = mepc_pre;
   assign rvfi_csr_mepc_wdata = mepc_post;
 `endif
@@ -208,7 +235,8 @@ module rvfi_wrapper (
   logic is_mcause;
   assign is_mcause = csr_op && dbg_insn[31:20] == 12'h342;
   assign rvfi_csr_mcause_rmask = is_mcause ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mcause_wmask = (mcause_pre != mcause_post) ? 32'hFFFFFFFF : (is_mcause ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mcause_wmask =
+      (mcause_pre != mcause_post) ? 32'hFFFFFFFF : (is_mcause ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mcause_rdata = mcause_pre;
   assign rvfi_csr_mcause_wdata = mcause_post;
 `endif
@@ -216,7 +244,8 @@ module rvfi_wrapper (
   logic is_mtval;
   assign is_mtval = csr_op && dbg_insn[31:20] == 12'h343;
   assign rvfi_csr_mtval_rmask = is_mtval ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mtval_wmask = (mtval_pre != mtval_post) ? 32'hFFFFFFFF : (is_mtval ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mtval_wmask =
+      (mtval_pre != mtval_post) ? 32'hFFFFFFFF : (is_mtval ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mtval_rdata = mtval_pre;
   assign rvfi_csr_mtval_wdata = mtval_post;
 `endif
@@ -224,7 +253,8 @@ module rvfi_wrapper (
   logic is_mie;
   assign is_mie = csr_op && dbg_insn[31:20] == 12'h304;
   assign rvfi_csr_mie_rmask = is_mie ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mie_wmask = (mie_pre != mie_post) ? 32'hFFFFFFFF : (is_mie ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mie_wmask =
+      (mie_pre != mie_post) ? 32'hFFFFFFFF : (is_mie ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mie_rdata = mie_pre;
   assign rvfi_csr_mie_wdata = mie_post;
 `endif
@@ -232,7 +262,8 @@ module rvfi_wrapper (
   logic is_mip;
   assign is_mip = csr_op && dbg_insn[31:20] == 12'h344;
   assign rvfi_csr_mip_rmask = is_mip ? 32'hFFFFFFFF : 32'd0;
-  assign rvfi_csr_mip_wmask = (mip_pre != mip_post) ? 32'hFFFFFFFF : (is_mip ? 32'hFFFFFFFF : 32'd0);
+  assign rvfi_csr_mip_wmask =
+      (mip_pre != mip_post) ? 32'hFFFFFFFF : (is_mip ? 32'hFFFFFFFF : 32'd0);
   assign rvfi_csr_mip_rdata = mip_pre;
   assign rvfi_csr_mip_wdata = mip_post;
 `endif
@@ -241,8 +272,12 @@ module rvfi_wrapper (
   assign is_mcycle_lo = csr_op && dbg_insn[31:20] == 12'hB00;
   logic is_mcycle_hi;
   assign is_mcycle_hi = csr_op && dbg_insn[31:20] == 12'hB80;
-  assign rvfi_csr_mcycle_rmask = {is_mcycle_hi ? 32'hFFFFFFFF : 32'd0, is_mcycle_lo ? 32'hFFFFFFFF : 32'd0};
-  assign rvfi_csr_mcycle_wmask = {is_mcycle_hi ? 32'hFFFFFFFF : 32'd0, is_mcycle_lo ? 32'hFFFFFFFF : 32'd0};
+  assign rvfi_csr_mcycle_rmask = {
+    is_mcycle_hi ? 32'hFFFFFFFF : 32'd0, is_mcycle_lo ? 32'hFFFFFFFF : 32'd0
+  };
+  assign rvfi_csr_mcycle_wmask = {
+    is_mcycle_hi ? 32'hFFFFFFFF : 32'd0, is_mcycle_lo ? 32'hFFFFFFFF : 32'd0
+  };
   assign rvfi_csr_mcycle_rdata = {mcycleh_pre, mcycle_pre};
   assign rvfi_csr_mcycle_wdata = {mcycleh_post, mcycle_post};
 `endif
@@ -251,8 +286,12 @@ module rvfi_wrapper (
   assign is_minstret_lo = csr_op && dbg_insn[31:20] == 12'hB02;
   logic is_minstret_hi;
   assign is_minstret_hi = csr_op && dbg_insn[31:20] == 12'hB82;
-  assign rvfi_csr_minstret_rmask = {is_minstret_hi ? 32'hFFFFFFFF : 32'd0, is_minstret_lo ? 32'hFFFFFFFF : 32'd0};
-  assign rvfi_csr_minstret_wmask = {is_minstret_hi ? 32'hFFFFFFFF : 32'd0, is_minstret_lo ? 32'hFFFFFFFF : 32'd0};
+  assign rvfi_csr_minstret_rmask = {
+    is_minstret_hi ? 32'hFFFFFFFF : 32'd0, is_minstret_lo ? 32'hFFFFFFFF : 32'd0
+  };
+  assign rvfi_csr_minstret_wmask = {
+    is_minstret_hi ? 32'hFFFFFFFF : 32'd0, is_minstret_lo ? 32'hFFFFFFFF : 32'd0
+  };
   assign rvfi_csr_minstret_rdata = {minstreth_pre, minstret_pre};
   assign rvfi_csr_minstret_wdata = {minstreth_post, minstret_post};
 `endif

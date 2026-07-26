@@ -6,7 +6,7 @@ CC      := riscv64-elf-gcc
 OBJCOPY := riscv64-elf-objcopy
 OBJDUMP := riscv64-elf-objdump
 
-CORE_CLK_HZ := 33333333
+CORE_CLK_HZ := 25000000
 ARCH        ?= rv32i_zicsr
 
 INCS := -I. -I$(SRC)

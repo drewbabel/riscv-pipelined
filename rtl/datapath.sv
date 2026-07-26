@@ -12,6 +12,9 @@ module datapath
     input  logic [XLEN-1:0] instr,
     input  logic [XLEN-1:0] read_data,
     input  logic            timer_irq,
+    input  logic            imem_ready,
+    input  logic            dmem_ready,
+    output logic            dmem_req,
     output logic [XLEN-1:0] pc,
     output logic            mem_write,
     output logic [XLEN-1:0] alu_result,
@@ -132,8 +135,18 @@ module datapath
   logic                              idex_en;
   logic                              exmem_en;
   logic                              memwb_en;
+  logic                              ifid_bubble;
   logic                              idex_bubble;
   logic                              exmem_bubble;
+  logic                              memwb_bubble;
+  logic                              if_hold;
+  logic                              redirect_pending;
+  logic                   [XLEN-1:0] redirect_target;
+  logic                   [XLEN-1:0] flush_target;
+  logic                              id_hold;
+  logic                              ex_hold;
+  logic                              mem_hold;
+  logic                              pc_en;
   logic                   [     1:0] forward_a;
   logic                   [     1:0] forward_b;
   logic                   [     1:0] fwd_a;
@@ -198,7 +211,7 @@ module datapath
       .RESET_ADDR('h0000_0000)
   ) pc_inst (
       .clk(clk),
-      .core_en(core_en && (ifid_en || flush)),
+      .core_en(core_en && pc_en),
       .rst_n(rst_n),
       .pc_next(pc_next),
       .pc_q(pc)
@@ -213,7 +226,7 @@ module datapath
       predict_taken_id  <= 1'b0;
       predict_target_id <= '0;
       bp_index_id       <= '0;
-    end else if (core_en && flush) begin
+    end else if (core_en && (flush || (ifid_en && ifid_bubble))) begin
       instr_id          <= 32'h0000_0013;  // NOP
       pc_id             <= '0;
       pc_plus4_id       <= '0;
@@ -336,12 +349,16 @@ module datapath
       valid_mem <= 1'b0;
       valid_wb  <= 1'b0;
     end else if (core_en) begin
-      if (exmem_bubble) begin
+      // Flush beats stalls
+      if (flush) valid_id <= 1'b0;
+      else if (ifid_en) valid_id <= !ifid_bubble;
+
+      if (memwb_bubble) begin
+        valid_wb <= 1'b0;
+      end else if (exmem_bubble) begin
         valid_mem <= 1'b0;
         valid_wb  <= valid_mem;
       end else begin
-        if (flush) valid_id <= 1'b0;
-        else if (ifid_en) valid_id <= 1'b1;
         valid_ex  <= valid_id && !idex_bubble;
         valid_mem <= valid_ex;
         valid_wb  <= valid_mem;
@@ -349,7 +366,7 @@ module datapath
     end
   end
 
-  assign commit_valid = valid_ex && !muldiv_hold;
+  assign commit_valid = valid_ex && !muldiv_hold && !mem_hold;
 
   hazard_unit #(
       .XLEN(XLEN)
@@ -379,16 +396,24 @@ module datapath
   assign muldiv_hold = is_muldiv_ex && !muldiv_done;
   assign stall = hazard_stall || muldiv_hold;
 
-  assign ifid_en = !stall;
-  assign idex_en = !muldiv_hold;
-  assign exmem_en = 1'b1;
-  assign memwb_en = 1'b1;
-  assign idex_bubble = hazard_stall || flush;
-  assign exmem_bubble = muldiv_hold;
+  assign if_hold = !imem_ready;
+  assign id_hold = hazard_stall;
+  assign ex_hold = muldiv_hold;
+  assign dmem_req = valid_mem && ((result_src_mem == 2'd1) || mem_write_mem);
+  assign mem_hold = dmem_req && !dmem_ready;
 
-  // Operands hold once the muldiv samples them
+  assign ifid_en = !id_hold && !ex_hold && !mem_hold;
+  assign idex_en = !ex_hold && !mem_hold;
+  assign exmem_en = !mem_hold;
+  assign memwb_en = 1'b1;
+  assign pc_en = (ifid_en && !if_hold) || (flush && !mem_hold && !if_hold);
+  assign ifid_bubble = if_hold || redirect_pending;
+  assign idex_bubble = id_hold || flush;
+  assign exmem_bubble = ex_hold && !mem_hold;
+  assign memwb_bubble = mem_hold;
+
+  // Hold sampled operands
   assign fwd_hold = muldiv_hold && !muldiv_start;
-  // A predicted jump links pc + 4
   assign mem_pc4 = (result_src_mem == 2'd2);
 
   always_comb begin
@@ -465,7 +490,7 @@ module datapath
       .predict_pc   (pc),
       .predict_taken(bp_taken),
       .predict_index(bp_index),
-      .update_valid (branch_ex && valid_ex), // resolved branches
+      .update_valid (branch_ex && valid_ex && !mem_hold), // resolved branches
       .update_taken (branch_taken_ex),
       .update_index (bp_index_ex)
   );
@@ -480,15 +505,23 @@ module datapath
       .hit           (btb_hit),
       .target        (btb_target),
       .is_cond       (btb_is_cond),
-      .update_valid  (pc_src_ex), // taken transfers
+      .update_valid  (pc_src_ex && !mem_hold), // taken transfers
       .update_pc     (pc_ex),
       .update_target (pc_target_ex),
       .update_is_cond(branch_ex)
   );
 
+`ifdef RISCV_FORMAL_ABSTRACT_BP
+  (* anyseq *) logic abs_predict_taken;
+  (* anyseq *) logic [XLEN-1:0] abs_predict_target;
+  assign predict_taken  = abs_predict_taken;
+  assign predict_target = {abs_predict_target[XLEN-1:1], 1'b0};
+`else
   assign predict_taken  = btb_hit && (bp_taken || !btb_is_cond);
   assign predict_target = btb_target;
-  assign mispredict = valid_ex && ((predict_taken_ex != pc_src_ex) ||
+`endif
+  // Operands not ready
+  assign mispredict = commit_valid && ((predict_taken_ex != pc_src_ex) ||
       (pc_src_ex && predict_taken_ex && predict_target_ex != pc_target_ex));
   assign correct_pc = mispredict ? (pc_src_ex ? pc_target_ex : pc_plus4_ex) : '0;
 
@@ -569,10 +602,30 @@ module datapath
 `endif
   );
 
-  // CSR read to writeback
   assign result_ex = is_muldiv_ex ? muldiv_result : (csr_access_ex ? csr_rdata : alu_result);
 
   assign flush = mispredict | trap_taken | mret_taken;
+
+  always_comb begin
+    if (trap_taken) flush_target = trap_vector;
+    else if (mret_taken) flush_target = mepc_out;
+    else flush_target = correct_pc;
+  end
+
+  // Deferred redirect
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      redirect_pending <= 1'b0;
+      redirect_target  <= '0;
+    end else if (core_en) begin
+      if (flush && !pc_en) begin
+        redirect_pending <= 1'b1;
+        redirect_target  <= flush_target;
+      end else if (pc_en) begin
+        redirect_pending <= 1'b0;
+      end
+    end
+  end
 
   // EX/MEM
   always_ff @(posedge clk) begin
@@ -641,6 +694,8 @@ module datapath
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       reg_write_wb <= 1'b0;
+    end else if (core_en && memwb_bubble) begin
+      reg_write_wb <= 1'b0;
     end else if (core_en && memwb_en) begin
       result_src_wb <= result_src_mem;
       alu_result_wb <= alu_result_mem;
@@ -662,7 +717,8 @@ module datapath
   end
 
   always_comb begin
-    if (trap_taken) pc_next = trap_vector;
+    if (redirect_pending) pc_next = redirect_target;
+    else if (trap_taken) pc_next = trap_vector;
     else if (mret_taken) pc_next = mepc_out;
     else if (mispredict) pc_next = correct_pc;
     else if (predict_taken) pc_next = predict_target;
@@ -681,32 +737,33 @@ module datapath
   logic [XLEN-1:0] rvfi_wdata_wb;
   logic rvfi_trap_mem, rvfi_trap_wb;
 
+  // Follows stage enables
   always_ff @(posedge clk) begin
-    // Freeze like ID/EX
-    if (!muldiv_hold) rvfi_insn_ex <= instr_id;
-    rvfi_insn_mem <= rvfi_insn_ex;
-    rvfi_insn_wb  <= rvfi_insn_mem;
+    if (idex_en) rvfi_insn_ex <= instr_id;
 
-    rvfi_pc_mem   <= pc_ex;
-    rvfi_pc_wb    <= rvfi_pc_mem;
+    if (exmem_en) begin
+      rvfi_insn_mem <= rvfi_insn_ex;
+      rvfi_pc_mem   <= pc_ex;
+      rvfi_rs1d_mem <= forwarded_rs1;
+      rvfi_rs2d_mem <= forwarded_rs2;
+      rvfi_trap_mem <= trap_taken;
+      if (trap_taken) rvfi_pcw_mem <= trap_vector;
+      else if (mret_taken) rvfi_pcw_mem <= mepc_out;
+      else if (pc_src_ex) rvfi_pcw_mem <= pc_target_ex;
+      else rvfi_pcw_mem <= pc_ex + 4;
+    end
 
-    if (trap_taken) rvfi_pcw_mem <= trap_vector;
-    else if (mret_taken) rvfi_pcw_mem <= mepc_out;
-    else if (pc_src_ex) rvfi_pcw_mem <= pc_target_ex;
-    else rvfi_pcw_mem <= pc_ex + 4;
-    rvfi_pcw_wb   <= rvfi_pcw_mem;
-
-    rvfi_rs1d_mem <= forwarded_rs1;
-    rvfi_rs1d_wb  <= rvfi_rs1d_mem;
-    rvfi_rs2d_mem <= forwarded_rs2;
-    rvfi_rs2d_wb  <= rvfi_rs2d_mem;
-
-    rvfi_memrd_wb <= read_data;
-    rvfi_wstrb_wb <= store_wstrb;
-    rvfi_wdata_wb <= store_data;
-
-    rvfi_trap_mem <= trap_taken;
-    rvfi_trap_wb  <= rvfi_trap_mem;
+    if (memwb_en) begin
+      rvfi_insn_wb  <= rvfi_insn_mem;
+      rvfi_pc_wb    <= rvfi_pc_mem;
+      rvfi_pcw_wb   <= rvfi_pcw_mem;
+      rvfi_rs1d_wb  <= rvfi_rs1d_mem;
+      rvfi_rs2d_wb  <= rvfi_rs2d_mem;
+      rvfi_trap_wb  <= rvfi_trap_mem;
+      rvfi_memrd_wb <= read_data;
+      rvfi_wstrb_wb <= store_wstrb;
+      rvfi_wdata_wb <= store_data;
+    end
   end
 
   assign dbg_valid     = valid_wb;

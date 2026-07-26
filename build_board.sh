@@ -4,9 +4,9 @@
 # RTL correct in sim and formal, synth workaround
 # pinned yosys 0.66 nextpnr-xilinx 0.8.2 sv2v 0.0.13, a bump may move the mis-opt off pc_plus4
 # after any synth or toolchain change run gate_check.sh, probe2 must print CD
-# usage build_board.sh [clkdiv=3] [flash]
+# usage build_board.sh [clkdiv=4] [flash]
 set -euo pipefail
-CLKDIV="${1:-3}"
+CLKDIV="${1:-4}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 mkdir -p build
@@ -24,7 +24,7 @@ sed -E "s/parameter int ClkDiv = [0-9]+/parameter int ClkDiv = ${CLKDIV}/" rtl/b
 echo "sv2v"
 sv2v $PKGS $REST "$PATCHED" > build/design.v
 echo "synth (ClkDiv=${CLKDIV}, keep pc_plus4)"
-yosys -q -p "read_verilog build/design.v; hierarchy -top board_top; setattr -set keep 1 w:*pc_plus4*; synth_xilinx -top board_top -flatten -nolutram; write_json build/design.json"
+yosys -q -p "read_verilog build/design.v; hierarchy -top board_top; setattr -set keep 1 w:*pc_plus4*; synth_xilinx -top board_top -flatten; write_json build/design.json"
 echo "pnr"
 nextpnr-xilinx --chipdb "$CHIPDB" --xdc constraints/basys3.xdc \
   --json build/design.json --fasm build/design.fasm --router router2 2>&1 | grep -iE "Max frequency for clock"

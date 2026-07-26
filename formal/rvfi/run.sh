@@ -13,7 +13,7 @@ fi
 
 DST="$RVF/cores/$CORE"
 mkdir -p "$DST"
-cp "$HERE/wrapper.sv" "$DST/wrapper.sv"
+cp "$HERE/rvfi_wrapper.sv" "$DST/wrapper.sv"
 cp "$HERE/checks.cfg" "$DST/checks.cfg"
 
 # every module in rtl
@@ -21,7 +21,9 @@ sv2v -D RISCV_FORMAL "$ROOT"/rtl/*.sv > "$DST/$CORE.v"
 
 cd "$DST"
 python3 "$RVF/checks/genchecks.py" >&2
-ls checks/*.sby | grep -v cover.sby | xargs perl -i -pe 's/smtbmc yices/btor btormc/'
+if [ "${RVFI_SMT:-0}" != "1" ]; then
+  ls checks/*.sby | grep -v cover.sby | xargs perl -i -pe 's/smtbmc yices/btor btormc/'
+fi
 
 # a failing check must fail the run
 perl -i -ne 'print unless /^expect /' checks/*.sby

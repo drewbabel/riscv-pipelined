@@ -16,7 +16,7 @@ STORE_WIDTH = {0: 1, 1: 2, 2: 4}  # store funct3 to byte count
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD = os.path.join(ROOT, "build")
-PKGS = ["alu_pkg.sv", "csr_pkg.sv", "opcode_pkg.sv", "muldiv_pkg.sv"]
+PKGS = ["alu_pkg.sv", "csr_pkg.sv", "opcode_pkg.sv", "muldiv_pkg.sv", "bp_pkg.sv", "cache_pkg.sv"]
 RTL = [os.path.join(ROOT, "rtl", p) for p in PKGS] + [
     os.path.join(ROOT, "rtl", f)
     for f in sorted(os.listdir(os.path.join(ROOT, "rtl")))

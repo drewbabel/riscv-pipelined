@@ -1,4 +1,6 @@
 module coremark_predict_tb ();
+
+  import cache_pkg::*;
   localparam int DEPTH = 16384;
   localparam int ClkDiv = 2;
   localparam int FastClkHz = 100_000_000;
@@ -54,16 +56,10 @@ module coremark_predict_tb ();
   initial begin
     for (int k = 0; k < DEPTH; k++) img[k] = 32'h0;
     $readmemh("sw/coremark/coremark_sim.hex", img);
-    #1;  // after mem init
+    #1;  // After mem init
     for (int k = 0; k < DEPTH; k++) begin
-      dut.imem_inst.g_lane[0].bmem[k] = img[k][7:0];
-      dut.imem_inst.g_lane[1].bmem[k] = img[k][15:8];
-      dut.imem_inst.g_lane[2].bmem[k] = img[k][23:16];
-      dut.imem_inst.g_lane[3].bmem[k] = img[k][31:24];
-      dut.dmem_inst.g_lane[0].bmem[k] = img[k][7:0];
-      dut.dmem_inst.g_lane[1].bmem[k] = img[k][15:8];
-      dut.dmem_inst.g_lane[2].bmem[k] = img[k][23:16];
-      dut.dmem_inst.g_lane[3].bmem[k] = img[k][31:24];
+      dut.imem_inst.line_mem[k/LineWords][32*(k%LineWords)+:32] = img[k];
+      dut.dmem_inst.line_mem[k/LineWords][32*(k%LineWords)+:32] = img[k];
     end
     rst = 1;
     sw  = 0;

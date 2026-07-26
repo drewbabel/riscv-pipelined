@@ -53,7 +53,7 @@ module cosim ();
     rst_n = 1;
   endtask  // Automatic
 
-  // One line per retired instruction
+  // Line per retirement
   task automatic emit_commit();
     logic [4:0] rd;
     rd = r_insn[11:7];
@@ -72,9 +72,11 @@ module cosim ();
     if (!$value$plusargs("n=%d", max_commits)) max_commits = 4000;
 
     $readmemh(hexfile, dut.imem_inst.mem);
+    if ($isunknown(dut.imem_inst.mem[0]) || dut.imem_inst.mem[0] == 32'h0)
+      $fatal(1, "%s missing or empty", hexfile);
     do_reset();
 
-    // Stop when park sentinel repeats
+    // Park sentinel stops
     have_last = 0;
     stop      = 0;
     for (int i = 0; i < max_commits && !stop; i++) begin
