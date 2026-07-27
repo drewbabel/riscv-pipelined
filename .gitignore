@@ -28,3 +28,8 @@ sw/FreeRTOS-Kernel/
 sw/freertos/*.elf
 sw/freertos/*.hex
 sw/freertos/*.bin
+
+# Embench (source cloned at build, images rebuilt)
+sw/embench-src/
+sw/embench/*.elf
+sw/embench/*.hex
