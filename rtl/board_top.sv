@@ -36,7 +36,9 @@ module board_top
   logic            uart_sel;
   logic            tx_ready;
   logic            timer_irq;
+  logic            ext_irq;
   logic            tx_valid;
+  logic [     7:0] tx_byte;
   logic [    15:0] led_reg;
 
   logic            core_rst_n;
@@ -121,10 +123,6 @@ module board_top
 
   assign dmem_ready = periph_sel ? 1'b1 : dc_ready;
 
-  // Serial transmit register
-  assign uart_rdata = {31'b0, tx_ready};
-  assign tx_valid   = core_en && uart_sel && !mem_addr[2] && |store_wstrb;
-
   // GPIO read mux
   assign gpio_rdata = mem_addr[2] ? {16'b0, sw} : {16'b0, led_reg};
   assign led        = loading ? 16'h5555 : led_reg;
@@ -153,10 +151,30 @@ module board_top
       .clk      (clk),
       .core_en  (core_en),
       .rst_n    (rst_n),
-      .tx_data  (store_data[7:0]),
+      .tx_data  (tx_byte),
       .tx_valid (tx_valid),
       .tx_ready (tx_ready),
       .tx_serial(uart_tx)
+  );
+
+  uart_ctrl #(
+      .XLEN(XLEN)
+  ) uart_ctrl_inst (
+      .clk     (clk),
+      .core_en (core_en),
+      .rst_n   (core_rst_n),
+      .sel     (uart_sel),
+      .req     (dmem_req),
+      .wstrb   (store_wstrb),
+      .addr    (mem_addr),
+      .wdata   (store_data),
+      .rdata   (uart_rdata),
+      .rx_valid(rx_valid_w),
+      .rx_data (rx_byte),
+      .tx_ready(tx_ready),
+      .tx_valid(tx_valid),
+      .tx_data (tx_byte),
+      .irq     (ext_irq)
   );
 
   boot_loader #(
@@ -183,6 +201,7 @@ module board_top
       .instr      (instr),
       .read_data  (read_data),
       .timer_irq  (timer_irq),
+      .ext_irq    (ext_irq),
       .imem_ready (imem_ready),
       .dmem_ready (dmem_ready),
       .dmem_req   (dmem_req),

@@ -27,9 +27,10 @@ module csr
     input logic exc_load_misaligned,
     input logic exc_store_misaligned,
 
-    // Interrupt from CLINT
+    // Interrupts
     input logic is_mret,
     input logic timer_irq,
+    input logic ext_irq,
 
     // Zicsr read value to writeback mux
     output logic [XLEN-1:0] csr_rdata,
@@ -73,6 +74,8 @@ module csr
   logic [XLEN-1:0] csr_wsrc;
   logic [XLEN-1:0] csr_wdata;
   logic            csr_write_en;
+  logic            timer_ready;
+  logic            ext_ready;
 
   assign csr_wsrc = (funct3[2]) ? {{(XLEN - 5) {1'b0}}, zimm} : rs1_data;
   always_comb begin
@@ -83,9 +86,11 @@ module csr
       default:                   csr_wdata = csr_rdata;
     endcase
   end
+  assign timer_ready = timer_irq & mstatus[MstatusMie] & mie[Mtie];
+  assign ext_ready = ext_irq & mstatus[MstatusMie] & mie[Meie];
   assign trap_taken  = exc_illegal | exc_ecall | exc_ebreak | exc_instr_misaligned
                         | exc_load_misaligned | exc_store_misaligned
-                        | (timer_irq & mstatus[MstatusMie] & mie[Mtie]);
+                        | timer_ready | ext_ready;
   // Reject if trap, or if set/clear with zero source
   assign csr_write_en = csr_access && !trap_taken && 
                         !((funct3[1:0] == 2'b10 || funct3[1:0] == 2'b11) && (csr_wsrc == '0));
@@ -93,11 +98,11 @@ module csr
   assign mret_taken = is_mret;
   assign mepc_out = mepc;
 
-  // Mtip mirrors line
   logic [XLEN-1:0] mip_read;
   always_comb begin
     mip_read = mip;
     mip_read[Mtip] = timer_irq;
+    mip_read[Meip] = ext_irq;
   end
 
   // Read mux
@@ -177,7 +182,8 @@ module csr
           mcause <= {1'b0, 31'(CauseStoreMisaligned)};
           mtval  <= bad_addr;
         end else begin
-          mcause <= {1'b1, 31'(CauseMachineTimerIrq)};
+          mcause <= ext_ready ? {1'b1, 31'(CauseMachineExternalIrq)}
+              : {1'b1, 31'(CauseMachineTimerIrq)};
           mtval  <= '0;
         end
       end else if (is_mret) begin
@@ -194,7 +200,8 @@ module csr
           MepcAddr:     mepc <= {csr_wdata[XLEN-1:2], 2'b00};  // mepc word aligned
           McauseAddr:   mcause <= csr_wdata;
           MtvalAddr:    mtval <= csr_wdata;
-          MipAddr:      mip <= csr_wdata & ~(XLEN'(1) << Mtip);  // Mtip read-only
+          // Read only
+          MipAddr:      mip <= csr_wdata & ~(XLEN'(1) << Mtip) & ~(XLEN'(1) << Meip);
           MinstretAddr: minstret <= csr_wdata;
           MinstrethAddr: minstreth <= csr_wdata;
           default:      ;

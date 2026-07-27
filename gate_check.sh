@@ -18,7 +18,7 @@ perl -0pe 's/riscv_pipelined #\(\s*\.XLEN\(XLEN\)\s*\)\s*riscv_pipelined_inst/ri
 
 iverilog -g2012 -DSIM_BACKDOOR -s gate_check_tb -o build/check.sim $PKGS "$CELLS" build/core_gate0.v \
   build/board_top_check.sv rtl/bram_sdp.sv rtl/mem_delay.sv rtl/icache.sv rtl/dcache.sv rtl/boot_loader.sv \
-  rtl/clint.sv rtl/uart_rx.sv rtl/uart_tx.sv rtl/synchronizer.sv rtl/tick_gen.sv \
+  rtl/clint.sv rtl/uart_rx.sv rtl/uart_tx.sv rtl/uart_ctrl.sv rtl/synchronizer.sv rtl/tick_gen.sv \
   tb/gate_check_tb.sv 2>/dev/null
 
 OUT=$(vvp build/check.sim +HEX=build/jalret.hex 2>/dev/null | LC_ALL=C tr -cd 'A-Za-z')

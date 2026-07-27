@@ -26,6 +26,7 @@ module irq_formal
 
   logic            is_mret;
   logic            timer_irq;
+  logic            ext_irq;
 
   logic [XLEN-1:0] csr_rdata;
   logic            trap_taken;
@@ -68,6 +69,7 @@ module irq_formal
       .exc_store_misaligned(exc_store_misaligned),
       .is_mret(is_mret),
       .timer_irq(timer_irq),
+      .ext_irq(ext_irq),
       .csr_rdata(csr_rdata),
       .trap_taken(trap_taken),
       .trap_vector(trap_vector),
@@ -95,8 +97,12 @@ module irq_formal
   assign exc_any = exc_illegal | exc_ecall | exc_ebreak | exc_instr_misaligned
                  | exc_load_misaligned | exc_store_misaligned;
 
+  logic timer_ready;
+  logic ext_ready;
   logic irq_ready;
-  assign irq_ready = timer_irq & dbg_mstatus[MstatusMie] & dbg_mie[Mtie];
+  assign timer_ready = timer_irq & dbg_mstatus[MstatusMie] & dbg_mie[Mtie];
+  assign ext_ready   = ext_irq & dbg_mstatus[MstatusMie] & dbg_mie[Meie];
+  assign irq_ready   = timer_ready | ext_ready;
 
   // Reachable inputs
   always @(posedge clk) begin
@@ -115,14 +121,17 @@ module irq_formal
       // Entry state
       if ($past(irq_ready && !exc_any && core_en)) begin
         assert (dbg_mepc == $past(pc));
-        assert (dbg_mcause == {1'b1, 31'(CauseMachineTimerIrq)});
+
+        assert (dbg_mcause == ($past(ext_ready) ? {1'b1, 31'(CauseMachineExternalIrq)}
+                                                : {1'b1, 31'(CauseMachineTimerIrq)}));
+
         assert (dbg_mstatus[MstatusMie] == 1'b0);
         assert (dbg_mstatus[MstatusMpie] == $past(dbg_mstatus[MstatusMie]));
         assert (trap_vector == {dbg_mtvec[31:2], 2'b00});
       end
 
       // Priority
-      if ($past(exc_any && timer_irq && core_en)) assert (!dbg_mcause[31]);
+      if ($past(exc_any && (timer_irq || ext_irq) && core_en)) assert (!dbg_mcause[31]);
 
       // Mret
       if ($past(is_mret && !trap_taken && core_en))
