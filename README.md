@@ -17,6 +17,8 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 
 ### CoreMark
 
+Compiled at `-O2` and measured on the board at each configuration's highest achievable clock.
+
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
 | Pipelined RV32IM, caches, 20-cycle memory model | 25.0 MHz | 15.61 | 0.62 |
@@ -25,9 +27,35 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 | [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
 | [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
 
+### Embench
+
+All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`. The pipelined core runs RV32IM and the single-cycle core runs RV32I with the libgcc soft multiply.
+
+| Benchmark | Single-cycle cycles | Pipelined cycles | Speedup | Explanation |
+|---|---|---|---|---|
+| `aha-mont64` | 12,747,113 | 10,258,848 | 1.24 | Hardware multiply outweighs the stall cycles |
+| `crc32` | 5,746,547 | 8,012,302 | 0.72 | Load-use stalls with no multiplies to win back |
+| `depthconv` | 54,305,013 | 8,513,186 | 6.38 | Each accumulate pays a soft-multiply call on RV32I |
+| `edn` | 68,368,034 | 8,423,854 | 8.12 | Soft-multiply calls dominate the RV32I run |
+| `huffbench` | 2,381,259 | 5,224,182 | 0.46 | Mispredicted data-dependent branches |
+| `matmult-int` | 24,655,071 | 7,781,946 | 3.17 | Hardware multiply in the inner loop |
+| `md5sum` | 3,139,462 | 6,449,322 | 0.49 | Serial shift and xor chains leave only stall cost |
+| `nettle-aes` | 4,402,665 | 10,017,204 | 0.44 | Stalling table loads with nothing to win back |
+| `nettle-sha256` | 4,991,165 | 10,355,678 | 0.48 | Rotate and xor rounds pay only stall cost |
+| `nsichneu` | 2,242,269 | 15,417,712 | 0.15 | Code outgrows the icache, 13.8% of fetches miss |
+| `picojpeg` | 3,346,409 | 6,549,516 | 0.51 | Bit-reading branches outweigh the multiply savings |
+| `qrduino` | 4,892,213 | 6,283,296 | 0.78 | Multiply savings partly offset the mispredicts |
+| `sglib-combined` | 2,799,761 | 6,180,216 | 0.45 | Pointer-chasing loads stall back to back |
+| `slre` | 2,809,560 | 6,527,320 | 0.43 | A data-dependent branch per character |
+| `statemate` | 2,377,657 | 6,540,378 | 0.36 | Dense unpredictable branches |
+| `tarfind` | 6,101,114 | 5,148,026 | 1.19 | Hardware multiply in the benchmark loop |
+| `ud` | 6,415,329 | 7,215,180 | 0.89 | Kernel divides nearly offset the stalls |
+| `wikisort` | 7,497,378 | 7,383,034 | 1.02 | Hardware divide and remainder offset the stalls |
+| `xgboost` | 3,506,538 | 12,333,828 | 0.28 | Data outgrows the dcache, 22.3% of accesses miss |
+
 ### Memory hierarchy
 
-The Basys 3 carries no DRAM. `mem_delay` stands in for one, a synthesizable main memory parameterized by latency and completing through a ready handshake. The cache rows below are measured on the board at a divide-by-4 core enable, with ticks and hit rates identical to simulation. A 200-iteration run validates the CRCs on hardware over 12.8 seconds.
+The Basys 3 has no DRAM, so `mem_delay` emulates a main memory in block RAM, parameterized by latency and completing through a ready handshake. The cache rows below are measured on the board at a divide-by-4 core enable, with ticks and hit rates identical to simulation. A 200-iteration run validates the CRCs on hardware over 12.8 seconds.
 
 | Configuration | Total ticks | Iterations/sec | Instruction cache | Data cache |
 |---|---|---|---|---|
@@ -35,7 +63,7 @@ The Basys 3 carries no DRAM. `mem_delay` stands in for one, a synthesizable main
 | Caches, 1-cycle memory | 1,597,690 | 20.86 | 99.8% hit | 99.6% hit |
 | Caches, 20-cycle memory | 1,610,380 | 20.70 | 99.8% hit, 2.04 cycle AMAT | 99.6% hit, 2.08 cycle AMAT |
 
-A 20x increase in memory latency costs 0.8%, against roughly 21 cycles for an uncached access. Hit latency accounts for the remaining gap to the uncached figure, since both controllers spend a cycle in `IDLE` before `COMPARE`.
+A 20x increase in memory latency costs 0.8%, where every uncached access would pay roughly 21 cycles. Hit latency accounts for the remaining gap to the uncached figure, since both controllers spend a cycle in `IDLE` before `COMPARE`.
 
 ## Verification
 
@@ -60,15 +88,15 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 | `gshare` | 46 | 10 | 0 |
 | `btb` | 112 | 64 | 0 |
 | `icache` \* | 216 | 256 | 19 |
-| `alu` | 492 | 0 | 0 |
+| `alu` | 497 | 0 | 0 |
 | `muldiv` | 567 | 240 | 0 |
 | `mem_delay` \* | 155 | 148 | 32 |
 | `csr` | 810 | 382 | 0 |
 | `regfile` | 1050 | 992 | 0 |
-| `dcache` \* | 5176 | 1284 | 0 |
-| `riscv_pipelined` | 3778 | 2419 | 0 |
+| `dcache` \* | 5271 | 1284 | 0 |
+| `riscv_pipelined` | 3556 | 2418 | 0 |
 
-\* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state stays in flops.
+\* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state is kept in flip-flops.
 
 ## Building and running
 
