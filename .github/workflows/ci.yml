@@ -12,7 +12,7 @@ jobs:
     outputs:
       groups: ${{ steps.list.outputs.groups }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Split testbenches into groups
         id: list
         run: |
@@ -27,7 +27,7 @@ jobs:
       matrix:
         group: ${{ fromJSON(needs.testbench-list.outputs.groups) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Icarus Verilog
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
@@ -43,8 +43,8 @@ jobs:
   formal:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: YosysHQ/setup-oss-cad-suite@v3
+      - uses: actions/checkout@v7
+      - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install sv2v
@@ -65,7 +65,7 @@ jobs:
     outputs:
       groups: ${{ steps.list.outputs.groups }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install sv2v
         run: |
           mkdir -p "$HOME/.local/bin"
@@ -92,8 +92,8 @@ jobs:
       matrix:
         group: ${{ fromJSON(needs.core-formal-list.outputs.groups) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: YosysHQ/setup-oss-cad-suite@v3
+      - uses: actions/checkout@v7
+      - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install sv2v
@@ -114,7 +114,7 @@ jobs:
   coremark:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Verilator and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
@@ -133,7 +133,7 @@ jobs:
   embench:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Verilator and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
@@ -152,7 +152,7 @@ jobs:
   freertos:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Verilator and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
@@ -175,7 +175,7 @@ jobs:
   cosim:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Icarus Verilog and RISC-V toolchain
         run: |
           sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
@@ -188,7 +188,7 @@ jobs:
           done
       - name: Cache Spike
         id: spike-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /opt/spike
           key: spike-riscv-isa-sim-v1
@@ -212,8 +212,8 @@ jobs:
   gate-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: YosysHQ/setup-oss-cad-suite@v3
+      - uses: actions/checkout@v7
+      - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install sv2v and RISC-V toolchain
