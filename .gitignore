@@ -33,3 +33,4 @@ sw/freertos/*.bin
 sw/embench-src/
 sw/embench/*.elf
 sw/embench/*.hex
+*.ron
