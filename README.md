@@ -81,20 +81,20 @@ A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is 
 
 Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xilinx.
 
-| Module | LUTs | Flip-flops | Block RAMs (18 Kb each) |
-|--------|------|------------|-------------------------|
-| `uart_ctrl` | 18 | 11 | 0 |
-| `hazard_unit` | 23 | 0 | 0 |
-| `gshare` | 46 | 10 | 0 |
-| `btb` | 112 | 64 | 0 |
-| `icache` \* | 216 | 256 | 19 |
-| `alu` | 497 | 0 | 0 |
-| `muldiv` | 567 | 240 | 0 |
-| `mem_delay` \* | 155 | 148 | 32 |
-| `csr` | 810 | 382 | 0 |
-| `regfile` | 1050 | 992 | 0 |
-| `dcache` \* | 5271 | 1284 | 0 |
-| `riscv_pipelined` | 3556 | 2418 | 0 |
+| Module | LUTs | Flip-flops | Distributed RAM (bits) | Block RAMs (18 Kb each) |
+|--------|------|------------|------------------------|-------------------------|
+| `uart_ctrl` | 18 | 11 | 0 | 0 |
+| `hazard_unit` | 23 | 0 | 0 | 0 |
+| `gshare` | 46 | 10 | 2048 | 0 |
+| `btb` | 112 | 64 | 5120 | 0 |
+| `icache` \* | 216 | 256 | 0 | 19 |
+| `alu` | 497 | 0 | 0 | 0 |
+| `muldiv` | 567 | 240 | 0 | 0 |
+| `mem_delay` \* | 155 | 148 | 0 | 32 |
+| `csr` | 810 | 382 | 0 | 0 |
+| `regfile` | 1050 | 992 | 0 | 0 |
+| `dcache` \* | 5271 | 1284 | 116736 | 0 |
+| `riscv_pipelined` | 3556 | 2418 | 13312 | 0 |
 
 \* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state is kept in flip-flops.
 
