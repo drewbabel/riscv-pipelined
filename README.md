@@ -105,6 +105,8 @@ make MOD=alu                                # run a module's testbench
 make vsim MOD=coremark_boot                 # fast two-state Verilator run of a long testbench
 make wave MOD=board_top                     # run the testbench and open the waveform in Surfer
 make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
+make trace MOD=hazard_unit                  # print a formal counterexample as text
+make view-formal MOD=hazard_unit            # open a formal waveform in Surfer
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
 make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
