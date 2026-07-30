@@ -2,8 +2,9 @@
 #   make vsim MOD=pc             fast 2-state Verilator run (perf sweeps + regression; not X-debug)
 #   make wave MOD=alu            same, then open the waveform in surfer (opens even on FAIL)
 #   make view MOD=alu            open testbench waveform in surfer (no rerun) (error if .vcd missing)
-#   make view-formal MOD=alu     open formal waveform; error if .vcd missing
 #   make formal MOD=alu          run every SymbiYosys task in formal/$(MOD).sby (FAIL exits nonzero)
+#   make trace MOD=alu           print a formal counterexample as text
+#   make view-formal MOD=alu     open a formal waveform in surfer; error if .vcd missing
 #   make hex PROG=program        assemble tests/$(PROG).s -> tests/$(PROG).hex for $readmemh
 #   make dis PROG=program        disassemble the built elf (sanity-check the machine code)
 #   make cosim PROG=cosim1       lockstep-compare tests/cosim1.s against Spike (needs spike installed)
@@ -65,11 +66,35 @@ view:
 	@test -f "$(VCD)" || { echo "Error: $(VCD) not found (run make MOD=$(MOD) first)"; exit 1; }
 	surfer $(VCD) -s tb/$(MOD).ron &
 
+# Echoes MOD's run directory, prompting when the .sby split into several tasks
+define pick_run
+	test -n "$(MOD)" || { echo "usage: make $@ MOD=<module>  (e.g. MOD=alu)" >&2; exit 1; }; \
+	runs=$$(for d in formal/$(MOD)/ formal/$(MOD)_*/; do [ -f "$$d/status" ] && echo "$${d%/}"; done); \
+	[ -n "$$runs" ] || { echo "No runs for $(MOD), try: make formal MOD=$(MOD)" >&2; exit 1; }; \
+	if [ $$(echo "$$runs" | wc -l) -eq 1 ]; then echo "$$runs"; else \
+	  i=0; for d in $$runs; do i=$$((i+1)); \
+	    printf '  %d) %-12s %-6s%s\n' $$i "$$(basename $$d | sed 's/^$(MOD)_//')" \
+	      "$$(cut -d' ' -f1 $$d/status)" \
+	      "$$(find $$d -name trace.yw 2>/dev/null | head -1 | sed 's/.*/counterexample/')" >&2; \
+	  done; \
+	  printf 'Select task: ' >&2; read n; \
+	  sel=$$(echo "$$runs" | sed -n "$${n}p" 2>/dev/null); \
+	  [ -d "$$sel" ] || { echo "No task $$n" >&2; exit 1; }; \
+	  echo "$$sel"; fi
+endef
+
+trace:
+	@dir=$$($(pick_run)); test -n "$$dir" || exit 1; \
+	yw=$$(find $$dir -name 'trace.yw' 2>/dev/null | head -1); \
+	test -n "$$yw" || { echo "Error: no trace.yw in $$dir/, that run has no counterexample"; exit 1; }; \
+	yosys-witness display $$yw
+
 view-formal:
-	@test -n "$(MOD)" || { echo "usage: make view-formal MOD=<module>  (e.g. MOD=alu)"; exit 1; }
-	@test -f "formal/$(MOD).ron" || { echo "Error: formal/$(MOD).ron not found"; exit 1; }
-	@test -f "$$(find formal/$(MOD) -name '*.vcd' 2>/dev/null | head -1)" || { echo "Error: no .vcd found in formal/$(MOD)/"; exit 1; }
-	surfer $$(find formal/$(MOD) -name '*.vcd' 2>/dev/null | head -1) -s formal/$(MOD).ron &
+	@dir=$$($(pick_run)); test -n "$$dir" || exit 1; \
+	vcd=$$(find $$dir -name '*.vcd' 2>/dev/null | head -1); \
+	test -n "$$vcd" || { echo "Error: no .vcd found in $$dir/"; exit 1; }; \
+	echo "surfer $$vcd"; \
+	surfer $$vcd $$(test -f $$dir.ron && echo "-s $$dir.ron") &
 
 hex:
 	@test -n "$(PROG)" || { echo "usage: make hex PROG=<name>  (tests/<name>.s -> tests/<name>.hex)"; exit 1; }
@@ -90,4 +115,4 @@ clean:
 	rm -rf build *.vcd sim_build results.xml
 
 .DEFAULT_GOAL := run
-.PHONY: run vsim prog wave formal view view-formal hex dis cosim clean
+.PHONY: run vsim prog wave formal view trace view-formal hex dis cosim clean
