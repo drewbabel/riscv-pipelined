@@ -8,7 +8,7 @@ module tick_gen #(
     output logic tick
 );
 
-  logic [$clog2(DIVISOR-1):0] cnt;
+  logic [$clog2(DIVISOR-1):0] cnt = ($clog2(DIVISOR-1) + 1)'(DIVISOR - 1);
 
   always_ff @(posedge clk) begin
     if (!rst_n) cnt <= '0;

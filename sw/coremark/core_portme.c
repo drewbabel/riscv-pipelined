@@ -73,8 +73,8 @@ portable_init(core_portable *p, int *argc, char *argv[])
 void
 portable_fini(core_portable *p)
 {
-    volatile unsigned int *stats = (unsigned int *)0x05000000;
-    unsigned int ih = stats[0], im = stats[1], dh = stats[2], dm = stats[3];
+    volatile unsigned int *pmu = (unsigned int *)0x05000000;
+    unsigned int ih = pmu[0], im = pmu[1], dh = pmu[2], dm = pmu[3];
 
     ee_printf("icache hits %u misses %u\n", ih, im);
     ee_printf("dcache hits %u misses %u\n", dh, dm);

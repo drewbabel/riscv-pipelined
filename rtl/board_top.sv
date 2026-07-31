@@ -17,11 +17,10 @@ module board_top
   localparam logic [7:0] ClintTag = 8'h02;
   localparam logic [7:0] GpioTag = 8'h03;
   localparam logic [7:0] UartTag = 8'h04;
-  localparam logic [7:0] StatsTag = 8'h05;
+  localparam logic [7:0] PmuTag = 8'h05;
 
   logic            rst_n;
   logic [XLEN-1:0] instr;
-  logic [XLEN-1:0] instr_raw;
   logic [XLEN-1:0] pc;
   logic [XLEN-1:0] mem_addr;
   logic [     3:0] store_wstrb;
@@ -39,7 +38,7 @@ module board_top
   logic            ext_irq;
   logic            tx_valid;
   logic [     7:0] tx_byte;
-  logic [    15:0] led_reg;
+  logic [    15:0] led_raw;
 
   logic            core_rst_n;
   logic            loading;
@@ -50,8 +49,8 @@ module board_top
   logic            rx_valid_w;
 
 
-  logic [XLEN-1:0] stats_rdata;
-  logic            stats_sel;
+  logic [XLEN-1:0] pmu_rdata;
+  logic            pmu_sel;
   logic            periph_sel;
 
   logic            imem_ready;
@@ -77,13 +76,18 @@ module board_top
   logic [31:0] dc_hits;
   logic [31:0] dc_misses;
 
-  // Core enable divider
   localparam int CoreClkHz = 100_000_000 / ClkDiv;
-  localparam logic [$clog2(ClkDiv)-1:0] DivMax = $clog2(ClkDiv)'(ClkDiv - 1);
-  logic [$clog2(ClkDiv)-1:0] div = '0;
-  logic                      core_en;
-  always_ff @(posedge clk) div <= (div == DivMax) ? '0 : div + 1'b1;
-  assign core_en = (div == 0);
+  logic core_en;
+
+  tick_gen #(
+      .DIVISOR(ClkDiv)
+  ) core_en_inst (
+      .clk    (clk),
+      .core_en(1'b1),
+      .rst_n  (1'b1),
+      .clr    (1'b0),
+      .tick   (core_en)
+  );
 
   // Power on reset
   logic [3:0] por = '0;
@@ -93,43 +97,52 @@ module board_top
   // Load holds reset
   assign core_rst_n = rst_n & ~loading;
 
-  assign instr      = instr_raw;
-
   // Decode on mem_addr
   assign clint_sel  = mem_addr[31:24] == ClintTag;
   assign gpio_sel   = mem_addr[31:24] == GpioTag;
   assign uart_sel   = mem_addr[31:24] == UartTag;
-  assign stats_sel  = mem_addr[31:24] == StatsTag;
-  assign periph_sel = clint_sel || gpio_sel || uart_sel || stats_sel;
+  assign pmu_sel    = mem_addr[31:24] == PmuTag;
+  assign periph_sel = clint_sel || gpio_sel || uart_sel || pmu_sel;
 
   // Peripheral read mux
   always_comb begin
     if (uart_sel) read_data = uart_rdata;
     else if (gpio_sel) read_data = gpio_rdata;
     else if (clint_sel) read_data = clint_rdata;
-    else if (stats_sel) read_data = stats_rdata;
+    else if (pmu_sel) read_data = pmu_rdata;
     else read_data = dc_rdata;
-  end
-
-  // Cache counters
-  always_comb begin
-    case (mem_addr[3:2])
-      2'd0: stats_rdata = ic_hits;
-      2'd1: stats_rdata = ic_misses;
-      2'd2: stats_rdata = dc_hits;
-      default: stats_rdata = dc_misses;
-    endcase
   end
 
   assign dmem_ready = periph_sel ? 1'b1 : dc_ready;
 
-  // GPIO read mux
-  assign gpio_rdata = mem_addr[2] ? {16'b0, sw} : {16'b0, led_reg};
-  assign led        = loading ? 16'h5555 : led_reg;
-  always_ff @(posedge clk) begin
-    if (!core_rst_n) led_reg <= '0;
-    else if (core_en && gpio_sel && !mem_addr[2] && |store_wstrb) led_reg <= store_data[15:0];
-  end
+  assign led = loading ? 16'h5555 : led_raw;
+
+  pmu #(
+      .XLEN(XLEN)
+  ) pmu_inst (
+      .addr     (mem_addr),
+      .rdata    (pmu_rdata),
+      .ic_hits  (ic_hits),
+      .ic_misses(ic_misses),
+      .dc_hits  (dc_hits),
+      .dc_misses(dc_misses)
+  );
+
+  gpio #(
+      .XLEN (XLEN),
+      .WIDTH(16)
+  ) gpio_inst (
+      .clk    (clk),
+      .core_en(core_en),
+      .rst_n  (core_rst_n),
+      .sel    (gpio_sel),
+      .wstrb  (store_wstrb),
+      .addr   (mem_addr),
+      .wdata  (store_data),
+      .rdata  (gpio_rdata),
+      .sw     (sw),
+      .led    (led_raw)
+  );
 
   uart_rx #(
       .CLK_FREQ_HZ(CoreClkHz),
@@ -222,7 +235,7 @@ module board_top
       .rst_n     (core_rst_n),
       .cpu_valid (1'b1),
       .cpu_addr  (pc),
-      .cpu_rdata (instr_raw),
+      .cpu_rdata (instr),
       .cpu_ready (imem_ready),
       .mem_valid (ic_mem_valid),
       .mem_addr  (ic_mem_addr),

@@ -16,10 +16,10 @@ yosys -q -p "read_verilog build/check_design.v; hierarchy -top riscv_pipelined; 
 sed "s/\.INIT(1'hx)/.INIT(1'h0)/g" build/core_gate.v > build/core_gate0.v
 perl -0pe 's/riscv_pipelined #\(\s*\.XLEN\(XLEN\)\s*\)\s*riscv_pipelined_inst/riscv_pipelined riscv_pipelined_inst/s' rtl/board_top.sv > build/board_top_check.sv
 
-iverilog -g2012 -DSIM_BACKDOOR -s gate_check_tb -o build/check.sim $PKGS "$CELLS" build/core_gate0.v \
-  build/board_top_check.sv rtl/bram_sdp.sv rtl/mem_delay.sv rtl/icache.sv rtl/dcache.sv rtl/boot_loader.sv \
-  rtl/clint.sv rtl/uart_rx.sv rtl/uart_tx.sv rtl/uart_ctrl.sv rtl/synchronizer.sv rtl/tick_gen.sv \
-  tb/gate_check_tb.sv 2>/dev/null
+SIM_PKGS=$(ls rtl/*_pkg.sv)
+SIM_MODS=$(ls rtl/*.sv | grep -vE '_pkg|board_top|riscv_pipelined')
+iverilog -g2012 -DSIM_BACKDOOR -s gate_check_tb -o build/check.sim $SIM_PKGS "$CELLS" build/core_gate0.v \
+  build/board_top_check.sv $SIM_MODS tb/gate_check_tb.sv 2>/dev/null
 
 OUT=$(vvp build/check.sim +HEX=build/jalret.hex 2>/dev/null | LC_ALL=C tr -cd 'A-Za-z')
 if echo "$OUT" | grep -q "CD"; then
