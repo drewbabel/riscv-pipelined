@@ -83,8 +83,10 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 
 | Module | LUTs | Flip-flops | Distributed RAM (bits) | Block RAMs (18 Kb each) |
 |--------|------|------------|------------------------|-------------------------|
+| `gpio` | 17 | 16 | 0 | 0 |
 | `uart_ctrl` | 18 | 11 | 0 | 0 |
 | `hazard_unit` | 23 | 0 | 0 | 0 |
+| `pmu` | 32 | 0 | 0 | 0 |
 | `gshare` | 46 | 10 | 2048 | 0 |
 | `btb` | 112 | 64 | 5120 | 0 |
 | `icache` \* | 216 | 256 | 0 | 19 |
