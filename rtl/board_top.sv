@@ -77,13 +77,18 @@ module board_top
   logic [31:0] dc_hits;
   logic [31:0] dc_misses;
 
-  // Core enable divider
   localparam int CoreClkHz = 100_000_000 / ClkDiv;
-  localparam logic [$clog2(ClkDiv)-1:0] DivMax = $clog2(ClkDiv)'(ClkDiv - 1);
-  logic [$clog2(ClkDiv)-1:0] div = '0;
-  logic                      core_en;
-  always_ff @(posedge clk) div <= (div == DivMax) ? '0 : div + 1'b1;
-  assign core_en = (div == 0);
+  logic core_en;
+
+  tick_gen #(
+      .DIVISOR(ClkDiv)
+  ) core_en_inst (
+      .clk    (clk),
+      .core_en(1'b1),
+      .rst_n  (1'b1),
+      .clr    (1'b0),
+      .tick   (core_en)
+  );
 
   // Power on reset
   logic [3:0] por = '0;
