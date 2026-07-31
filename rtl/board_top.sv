@@ -21,7 +21,6 @@ module board_top
 
   logic            rst_n;
   logic [XLEN-1:0] instr;
-  logic [XLEN-1:0] instr_raw;
   logic [XLEN-1:0] pc;
   logic [XLEN-1:0] mem_addr;
   logic [     3:0] store_wstrb;
@@ -97,8 +96,6 @@ module board_top
 
   // Load holds reset
   assign core_rst_n = rst_n & ~loading;
-
-  assign instr      = instr_raw;
 
   // Decode on mem_addr
   assign clint_sel  = mem_addr[31:24] == ClintTag;
@@ -238,7 +235,7 @@ module board_top
       .rst_n     (core_rst_n),
       .cpu_valid (1'b1),
       .cpu_addr  (pc),
-      .cpu_rdata (instr_raw),
+      .cpu_rdata (instr),
       .cpu_ready (imem_ready),
       .mem_valid (ic_mem_valid),
       .mem_addr  (ic_mem_addr),
