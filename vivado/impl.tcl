@@ -61,3 +61,5 @@ puts [format "RESULT wns_ns %.3f" [get_property SLACK [get_timing_paths -delay_t
 puts [format "RESULT whs_ns %.3f" [get_property SLACK [get_timing_paths -delay_type min -max_paths 1]]]
 puts [format "RESULT multicycle_slack_ns %.3f" \
         [get_property SLACK [get_timing_paths -from $gated -to $gated -delay_type max -max_paths 1]]]
+report_utilization -hierarchical -hierarchical_depth 3 -hierarchical_min_primitive_count 1 \
+                   -file [file join $outdir hier_util.rpt]
