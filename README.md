@@ -21,7 +21,7 @@ Compiled at `-O2` and measured on the board at each configuration's highest achi
 
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
-| Pipelined RV32IM, caches, 20-cycle memory model | 25.0 MHz | 15.61 | 0.62 |
+| Pipelined RV32IM, gshare, caches, 20-cycle memory model | 50.0 MHz | 76.56 | 1.53 |
 | [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | 99.37 | 2.98 |
 | [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
 | [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
@@ -107,9 +107,9 @@ Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7
 
 ### Timing
 
-The board clock is 100 MHz and the core advances on a clock enable every third cycle. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design, with 2.002 ns of worst setup slack and 0.032 ns of worst hold slack.
+The board clock is 100 MHz and the core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design at a divide-by-2 enable, with 1.255 ns of worst setup slack and 0.034 ns of worst hold slack. A divide-by-3 enable closes with 2.002 ns setup and 0.032 ns hold.
 
-Paths between core registers carry a three-cycle multicycle exception matching the enable cadence, and close with 9.646 ns to spare against their 30 ns budget. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl` at `ClkDiv` 3 reproduces the figures above.
+Paths between core registers carry a multicycle exception matching the enable cadence. At divide-by-3 those paths close with 9.646 ns to spare against their 30 ns budget. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl` at the matching `ClkDiv` reproduces the figures above.
 
 ## Building and running
 
