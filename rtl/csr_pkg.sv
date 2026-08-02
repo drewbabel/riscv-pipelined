@@ -30,7 +30,7 @@ package csr_pkg;
 
   // mtvec[1:0]
   localparam logic [1:0] MtvecDirect = 2'b00;  // Every trap jumps to same address
-  localparam logic [1:0] MtvecVectored = 2'b01;  // Exceptions & interupts treated differently
+  localparam logic [1:0] MtvecVectored = 2'b01;  // Exceptions & interrupts treated differently
 
   // mcause exception codes (interrupt bit 0)
   localparam logic [3:0] CauseInstrMisaligned = 4'd0;

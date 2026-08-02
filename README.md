@@ -79,26 +79,37 @@ A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is 
 
 ## Implementation
 
-Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xilinx.
+Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7 XC7A35T, reproducible with `vivado/impl.tcl`. `alu` and `hazard_unit` dissolve into the datapath during optimization, so they carry no standalone row.
 
-| Module | LUTs | Flip-flops | Distributed RAM (bits) | Block RAMs (18 Kb each) |
-|--------|------|------------|------------------------|-------------------------|
-| `gpio` | 17 | 16 | 0 | 0 |
-| `uart_ctrl` | 18 | 11 | 0 | 0 |
-| `hazard_unit` | 23 | 0 | 0 | 0 |
-| `pmu` | 32 | 0 | 0 | 0 |
-| `gshare` | 46 | 10 | 2048 | 0 |
-| `btb` | 112 | 64 | 5120 | 0 |
-| `icache` \* | 216 | 256 | 0 | 19 |
-| `alu` | 497 | 0 | 0 | 0 |
-| `muldiv` | 567 | 240 | 0 | 0 |
-| `mem_delay` \* | 155 | 148 | 0 | 32 |
-| `csr` | 810 | 382 | 0 | 0 |
-| `regfile` | 1050 | 992 | 0 | 0 |
-| `dcache` \* | 5271 | 1284 | 116736 | 0 |
-| `riscv_pipelined` | 3556 | 2418 | 13312 | 0 |
+| Instance | Logic LUTs | LUTRAM | Flip-flops | Block RAMs (18 Kb each) | DSPs |
+|----------|------------|--------|------------|-------------------------|------|
+| `uart_ctrl` | 3 | 0 | 11 | 0 | 0 |
+| `gpio` | 8 | 0 | 16 | 0 | 0 |
+| `tick_gen` | 11 | 0 | 1 | 0 | 0 |
+| `dmem` \* | 21 | 0 | 148 | 32 | 0 |
+| `imem` \* | 23 | 0 | 20 | 32 | 0 |
+| `gshare` | 25 | 64 | 10 | 0 | 0 |
+| `uart_tx` | 30 | 0 | 27 | 0 | 0 |
+| `pmu` | 32 | 0 | 0 | 0 | 0 |
+| `uart_rx` | 46 | 0 | 30 | 0 | 0 |
+| `clint` | 64 | 0 | 128 | 0 | 0 |
+| `btb` | 100 | 76 | 64 | 0 | 0 |
+| `boot_loader` | 111 | 0 | 93 | 0 | 0 |
+| `icache` \* | 179 | 0 | 255 | 19 | 0 |
+| `csr` | 225 | 0 | 382 | 0 | 0 |
+| `regfile` | 645 | 0 | 992 | 0 | 0 |
+| `muldiv` | 1872 | 0 | 239 | 0 | 15 |
+| `dcache` \* | 1962 | 1792 | 1282 | 0 | 0 |
+| `riscv_pipelined` | 3269 | 140 | 2366 | 0 | 15 |
+| `board_top` (total) | 5747 | 1932 | 4381 | 51 | 15 |
 
 \* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state is kept in flip-flops.
+
+### Timing
+
+The board clock is 100 MHz and the core advances on a clock enable every third cycle. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design, with 2.002 ns of worst setup slack and 0.032 ns of worst hold slack.
+
+Paths between core registers carry a three-cycle multicycle exception matching the enable cadence, and close with 9.646 ns to spare against their 30 ns budget. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl` at `ClkDiv` 3 reproduces the figures above.
 
 ## Building and running
 
@@ -113,7 +124,6 @@ bash formal/rvfi/run.sh                     # run the full riscv-formal proof of
 make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
 ./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
-./synth_stats.sh riscv_pipelined            # report a module's synthesis cost
 ```
 
 `build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.

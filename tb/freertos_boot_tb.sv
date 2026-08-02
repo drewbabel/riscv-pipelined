@@ -33,7 +33,7 @@ module freertos_boot_tb ();
     if (errors == 0) $display("PASS: %0d checks, switches reach LEDs via the queue", checks);
     else $fatal(1, "FAIL: %0d mismatches, %0d checks", errors, checks);
     $finish;
-  endtask  //automatic
+  endtask  // Automatic
 
   task automatic send_byte(input logic [7:0] b);
     uart_rx = 0;

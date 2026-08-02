@@ -46,7 +46,7 @@ module prog_tb ();
     if (errors == 0) $display("PASS: %0d checks, %0d mismatches", checks, errors);
     else $fatal(1, "FAIL: %0d mismatches, %0d checks", errors, checks);
     $finish;
-  endtask //automatic
+  endtask  // Automatic
 
   initial begin
     for (int i = 0; i < Depth; i++) dut.imem_inst.mem[i] = 32'h00000013;  // NOP fill
