@@ -114,17 +114,20 @@ Paths between core registers carry a three-cycle multicycle exception matching t
 ## Building and running
 
 ```
-make MOD=alu                                # run a module's testbench
-make vsim MOD=coremark_boot                 # fast two-state Verilator run of a long testbench
-make wave MOD=board_top                     # run the testbench and open the waveform in Surfer
-make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
-make trace MOD=hazard_unit                  # print a formal counterexample as text
-make view-formal MOD=hazard_unit            # open a formal waveform in Surfer
-bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
-make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
-python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
-./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
+make MOD=alu                                 # run a module's testbench
+make vsim MOD=coremark_boot                  # fast two-state Verilator run of a long testbench
+make wave MOD=board_top                      # run the testbench and open the waveform in Surfer
+make formal MOD=hazard_unit                  # run a module's SymbiYosys proof
+make trace MOD=hazard_unit                   # print a formal counterexample as text
+make view-formal MOD=hazard_unit             # open a formal waveform in Surfer
+bash formal/rvfi/run.sh                      # run the full riscv-formal proof of the core
+make cosim PROG=cosim_m                      # lockstep-compare an rv32im program against Spike
+python3 tests/send_prog.py PORT prog.hex     # stream a program to the board over UART
+./build_board.sh 4 flash                     # build the bitstream at divide-by-4 and flash
+make -C sw/coremark all ARCH=rv32im_zicsr    # build the CoreMark hex images
 ```
+
+`send_prog.py` honors the `@` address records `objcopy` emits at section boundaries and zero-fills the gaps, matching `$readmemh`, so the board and the testbenches load a program identically. The CoreMark image must be built with `CORE_CLK_HZ` equal to the instruction rate the bitstream runs at, since the score is derived from `mcycle`, which counts core-enable cycles.
 
 `build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.
 
