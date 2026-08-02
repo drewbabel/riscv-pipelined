@@ -100,6 +100,12 @@ Synthesized for the Xilinx Artix-7 XC7A35T through sv2v, Yosys, and nextpnr-xili
 
 \* Block RAM has no asynchronous read port. Every tag and data array is registered and single-ported, with valid and dirty packed into the tag word and a reset walk clearing the tags before the cache accepts a request. Block-RAM arrays are split into byte lanes, since nextpnr-xilinx misconfigures 9-bit block-RAM ports and every parity bit reads zero ([openXC7/nextpnr-xilinx#95](https://github.com/openXC7/nextpnr-xilinx/pull/95)). The data cache's shallow arrays use distributed RAM, and replacement state is kept in flip-flops.
 
+### Timing
+
+The board clock is 100 MHz and the core advances on a clock enable every third cycle. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design, with 2.002 ns of worst setup slack and 0.032 ns of worst hold slack.
+
+Paths between core registers carry a three-cycle multicycle exception matching the enable cadence, and close with 9.646 ns to spare against their 30 ns budget. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl` at `ClkDiv` 3 reproduces the figures above.
+
 ## Building and running
 
 ```
