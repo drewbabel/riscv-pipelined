@@ -7,13 +7,24 @@ import serial
 
 
 def load_words(path):
-    words = []
+    # objcopy skips section gaps, honour @ like readmemh
+    mem = {}
+    addr = 0
     for line in open(path):
         line = line.strip()
-        if not line or line.startswith("@"):
+        if not line:
             continue
-        words += [int(tok, 16) for tok in line.split()]
-    return words
+        if line.startswith("@"):
+            addr = int(line[1:], 16)
+            continue
+        for tok in line.split():
+            if addr in mem:
+                sys.exit(f"{path}: word {addr:#x} written twice")
+            mem[addr] = int(tok, 16)
+            addr += 1
+    if not mem:
+        return []
+    return [mem.get(i, 0) for i in range(max(mem) + 1)]
 
 
 def main():
