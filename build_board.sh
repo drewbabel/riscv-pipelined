@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage build_board.sh [clkdiv] [flash]
+# Usage build_board.sh [clkdiv] [flash]
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
@@ -27,7 +27,7 @@ sed -E "s/parameter int ClkDiv = [0-9]+/parameter int ClkDiv = ${CLKDIV}/" rtl/b
 echo "sv2v"
 sv2v $PKGS $REST "$PATCHED" > build/design.v
 echo "synth (ClkDiv=${CLKDIV}, keep pc_plus4)"
-# keep pc_plus4 for jal
+# Keep pc_plus4 nets
 yosys -q -p "read_verilog build/design.v; hierarchy -top board_top; setattr -set keep 1 w:*pc_plus4*; synth_xilinx -top board_top -flatten; write_json build/design.json"
 echo "pnr"
 nextpnr-xilinx --chipdb "$CHIPDB" --xdc constraints/basys3.xdc \

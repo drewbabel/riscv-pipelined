@@ -20,11 +20,9 @@ PORTSRC := core_portme.c ee_printf.c cvt.c libc.c
 ASRC    := start.S
 LIBGCC  := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 
-# reportable score
 coremark.elf: $(CORESRC) $(PORTSRC) $(ASRC) link.ld
 	$(CC) $(CFLAGS) -DITERATIONS=0 $(LDFLAGS) -o $@ $(CORESRC) $(PORTSRC) $(ASRC) $(LIBGCC)
 
-# one iteration
 coremark_sim.elf: $(CORESRC) $(PORTSRC) $(ASRC) link.ld
 	$(CC) $(CFLAGS) -DITERATIONS=1 $(LDFLAGS) -o $@ $(CORESRC) $(PORTSRC) $(ASRC) $(LIBGCC)
 

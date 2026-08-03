@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Stream hex to bootloader
 # python3 tests/send_prog.py <serial-port> <hexfile>
 
 import sys
@@ -7,7 +6,7 @@ import serial
 
 
 def load_words(path):
-    # objcopy skips section gaps, honour @ like readmemh
+    # Honour @ records
     mem = {}
     addr = 0
     for line in open(path):

@@ -25,7 +25,6 @@ all: freertos.hex freertos_sim.hex
 freertos.elf: $(CSRC) $(ASRC) link.ld FreeRTOSConfig.h
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(CSRC) $(ASRC) $(LIBGCC)
 
-# fast sim polling
 freertos_sim.elf: $(CSRC) $(ASRC) link.ld FreeRTOSConfig.h
 	$(CC) $(CFLAGS) -DREAD_DELAY=2 $(LDFLAGS) -o $@ $(CSRC) $(ASRC) $(LIBGCC)
 

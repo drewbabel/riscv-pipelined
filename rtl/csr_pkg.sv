@@ -1,6 +1,6 @@
 package csr_pkg;
 
-  // CSR addresses (instr[31:20])
+  // CSR addresses
   localparam logic [11:0] MstatusAddr = 12'h300;  // STATUS
   localparam logic [11:0] MieAddr = 12'h304;  // Interrupt Enable
   localparam logic [11:0] MtvecAddr = 12'h305;  // Trap-VECtor
@@ -21,7 +21,7 @@ package csr_pkg;
   localparam int MstatusMppLo = 11;  // Previous Privilege Low
   localparam logic [1:0] PrivMachine = 2'b11;
 
-  // mie / mip machine-timer bit
+  // Machine timer bit
   localparam int Mtie = 7;
   localparam int Mtip = 7;
 
@@ -32,7 +32,7 @@ package csr_pkg;
   localparam logic [1:0] MtvecDirect = 2'b00;  // Every trap jumps to same address
   localparam logic [1:0] MtvecVectored = 2'b01;  // Exceptions & interrupts treated differently
 
-  // mcause exception codes (interrupt bit 0)
+  // Exception codes
   localparam logic [3:0] CauseInstrMisaligned = 4'd0;
   localparam logic [3:0] CauseIllegalInstr = 4'd2;
   localparam logic [3:0] CauseBreakpoint = 4'd3;  // Hit breakpoint (likely from EBREAK)
@@ -40,7 +40,7 @@ package csr_pkg;
   localparam logic [3:0] CauseStoreMisaligned = 4'd6;
   localparam logic [3:0] CauseEcallM = 4'd11;  // Environment Call from M-mode
 
-  // mcause interrupt code (mcause[XLEN-1] set)
+  // Interrupt codes
   localparam logic [3:0] CauseMachineTimerIrq = 4'd7;
   localparam logic [3:0] CauseMachineExternalIrq = 4'd11;
 
@@ -53,12 +53,12 @@ package csr_pkg;
   localparam logic [2:0] Funct3Csrrsi = 3'b110;  // CSR Read, then Set from Immediate
   localparam logic [2:0] Funct3Csrrci = 3'b111;  // CSR Read, then Clear from Immediate
 
-  // funct12 when funct3 = Priv, E = "Environment"
+  // Priv funct12
   localparam logic [11:0] Funct12Ecall = 12'h000;  // Request for more privileged service
   localparam logic [11:0] Funct12Ebreak = 12'h001;  // Stops execution for debugging tools
   localparam logic [11:0] Funct12Mret = 12'h302;  // Exits m-mode trap handler, returns to program
 
-  // CLINT offsets from its base
+  // CLINT offsets
   localparam logic [15:0] ClintMtimecmpOffset = 16'h4000;
   localparam logic [15:0] ClintMtimeOffset = 16'hBFF8;
 
