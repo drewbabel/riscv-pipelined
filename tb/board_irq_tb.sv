@@ -100,7 +100,7 @@ module board_irq_tb ();
     $readmemh("tests/timer_irq.hex", prog);
     do_reset();
 
-    // Load the program, then catch the print the trap handler emits
+    // catch trap print
     send_word(NWords);
     foreach (prog[i]) send_word(prog[i]);
 

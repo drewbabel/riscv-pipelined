@@ -1,5 +1,3 @@
-# Build the FreeRTOS demo into a hex image for the core
-
 include ../../config.mk
 
 KDIR   := ../FreeRTOS-Kernel
@@ -27,7 +25,7 @@ all: freertos.hex freertos_sim.hex
 freertos.elf: $(CSRC) $(ASRC) link.ld FreeRTOSConfig.h
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(CSRC) $(ASRC) $(LIBGCC)
 
-# Sim build: fast polling so the queue moves within a few ticks
+# fast sim polling
 freertos_sim.elf: $(CSRC) $(ASRC) link.ld FreeRTOSConfig.h
 	$(CC) $(CFLAGS) -DREAD_DELAY=2 $(LDFLAGS) -o $@ $(CSRC) $(ASRC) $(LIBGCC)
 

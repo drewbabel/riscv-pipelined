@@ -1,7 +1,7 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
-/* Core and this SoC's CLINT (SiFive layout, base 0x02000000) */
+/* SiFive CLINT layout */
 #ifndef configCPU_CLOCK_HZ
 #define configCPU_CLOCK_HZ                      50000000
 #endif

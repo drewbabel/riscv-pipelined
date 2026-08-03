@@ -1,6 +1,3 @@
-# Build CoreMark hex images
-# EEMBC core cloned to coremark-src
-
 include ../../config.mk
 
 SRC     := ../coremark-src
@@ -23,11 +20,11 @@ PORTSRC := core_portme.c ee_printf.c cvt.c libc.c
 ASRC    := start.S
 LIBGCC  := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)
 
-# Hardware build, reportable score
+# reportable score
 coremark.elf: $(CORESRC) $(PORTSRC) $(ASRC) link.ld
 	$(CC) $(CFLAGS) -DITERATIONS=0 $(LDFLAGS) -o $@ $(CORESRC) $(PORTSRC) $(ASRC) $(LIBGCC)
 
-# Sim build, one iteration
+# one iteration
 coremark_sim.elf: $(CORESRC) $(PORTSRC) $(ASRC) link.ld
 	$(CC) $(CFLAGS) -DITERATIONS=1 $(LDFLAGS) -o $@ $(CORESRC) $(PORTSRC) $(ASRC) $(LIBGCC)
 
