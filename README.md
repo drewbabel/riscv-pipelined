@@ -17,7 +17,7 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 
 ### CoreMark
 
-Compiled at `-O2` and measured on the board at each configuration's highest achievable clock.
+Compiled at `-O2` and measured on the board at each configuration's clock.
 
 | Configuration | Clock | CoreMark/sec | CoreMark/MHz |
 |---------------|-------|--------------|--------------|
@@ -26,6 +26,8 @@ Compiled at `-O2` and measured on the board at each configuration's highest achi
 | [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
 | [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
 | [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
+
+The current configuration's clock is Vivado-2026.1-signed timing, with 1.255 ns of worst setup slack. The four historical configurations' clocks are the rates their boards actually ran at, since the multicycle-exception flow that signs the row above cannot close timing on their ungated 100 MHz registers at any clock.
 
 ### Embench
 
@@ -73,7 +75,7 @@ A 20x increase in memory latency costs 0.8%, where every uncached access would p
 | SymbiYosys unit proofs | `muldiv` products + handshake, `csr` interrupt path by k-induction, `hazard_unit` forwarding + stall + flush |
 | Spike lockstep co-simulation | Every retired instruction of a directed RV32IM program + a randomized regression |
 | Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
-| Basys 3 | Full system integration, CoreMark CRCs + all 19 Embench results on hardware |
+| Basys 3 | Full system integration, CoreMark CRCs on hardware |
 
 A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, a simultaneous external and timer interrupt resolves to the external one, and `mret` restores `MIE` from `MPIE`.
 
@@ -107,27 +109,24 @@ Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7
 
 ### Timing
 
-The board clock is 100 MHz and the core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design at a divide-by-2 enable, with 1.255 ns of worst setup slack and 0.034 ns of worst hold slack. A divide-by-3 enable closes with 2.002 ns setup and 0.032 ns hold.
+The board clock is 100 MHz and the core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 meets every timing constraint on the full `board_top` design at a divide-by-2 enable, with 1.255 ns of worst setup slack and 0.034 ns of worst hold slack.
 
-Paths between core registers carry a multicycle exception matching the enable cadence. At divide-by-3 those paths close with 9.646 ns to spare against their 30 ns budget. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl` at the matching `ClkDiv` reproduces the figures above.
+Paths between core registers carry a multicycle exception matching the enable cadence, and close with 1.331 ns to spare. Worst slack is set by the clock-enable distribution network, which is single-cycle by construction and is the one path class the exception does not cover. Running `vivado/impl.tcl 2` reproduces the figures above.
 
 ## Building and running
 
 ```
-make MOD=alu                                 # run a module's testbench
-make vsim MOD=coremark_boot                  # fast two-state Verilator run of a long testbench
-make wave MOD=board_top                      # run the testbench and open the waveform in Surfer
-make formal MOD=hazard_unit                  # run a module's SymbiYosys proof
-make trace MOD=hazard_unit                   # print a formal counterexample as text
-make view-formal MOD=hazard_unit             # open a formal waveform in Surfer
-bash formal/rvfi/run.sh                      # run the full riscv-formal proof of the core
-make cosim PROG=cosim_m                      # lockstep-compare an rv32im program against Spike
-python3 tests/send_prog.py PORT prog.hex     # stream a program to the board over UART
-./build_board.sh 4 flash                     # build the bitstream at divide-by-4 and flash
-make -C sw/coremark all ARCH=rv32im_zicsr    # build the CoreMark hex images
+make MOD=alu                                # run a module's testbench
+make vsim MOD=coremark_boot                 # fast two-state Verilator run of a long testbench
+make wave MOD=board_top                     # run the testbench and open the waveform in Surfer
+make formal MOD=hazard_unit                 # run a module's SymbiYosys proof
+make trace MOD=hazard_unit                  # print a formal counterexample as text
+make view-formal MOD=hazard_unit            # open a formal waveform in Surfer
+bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
+make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
+python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
+./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
 ```
-
-`send_prog.py` honors the `@` address records `objcopy` emits at section boundaries and zero-fills the gaps, matching `$readmemh`, so the board and the testbenches load a program identically. The CoreMark image must be built with `CORE_CLK_HZ` equal to the instruction rate the bitstream runs at, since the score is derived from `mcycle`, which counts core-enable cycles.
 
 `build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.
 
