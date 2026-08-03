@@ -29,7 +29,7 @@ Compiled at `-O2` and measured on the Basys 3 at each configuration's highest cl
 
 Only the top row faces a memory with realistic latency, which makes its CoreMark/MHz incomparable to the rows below. The four uncached configurations take `instr` and `read_data` as plain inputs with no ready handshake and have no way to wait on a slower memory, leaving a single-cycle memory as the only one they can be measured against. Dropping the top row's main memory to single-cycle latency on the same bitstream at 50.0 MHz moves the score from 76.56 to 76.92, a difference of 0.47 percent, because the caches absorb the latency. The top row's cost is the cache hit path, which spends a cycle in `IDLE` before `COMPARE` on every access and takes 1.94x the cycles per iteration that the uncached gshare configuration needs at a matched 33.3 MHz clock.
 
-Each clock is a ceiling. The three uncached pipelined configurations produce no valid run at divide-by-2 and the single-cycle baseline fails at divide-by-3. Vivado 2026.1 signs the top row's 50.0 MHz with 1.255 ns of worst setup slack. The historical configurations' registers are not enable-gated in a form the multicycle flow can constrain, which leaves their clocks hardware-validated.
+Each clock is a ceiling. The cached configuration produces no valid run at divide-by-1, the three uncached pipelined configurations fail at divide-by-2, and the single-cycle baseline fails at divide-by-3. Vivado 2026.1 signs the top row's 50.0 MHz with 1.255 ns of worst setup slack. The historical configurations' registers are not enable-gated in a form the multicycle flow can constrain, which leaves their clocks hardware-validated.
 
 ### Embench
 
