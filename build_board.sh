@@ -4,11 +4,11 @@
 # RTL correct in sim and formal, synth workaround
 # pinned yosys 0.66 nextpnr-xilinx 0.8.2 sv2v 0.0.13, a bump may move the mis-opt off pc_plus4
 # after any synth or toolchain change run gate_check.sh, probe2 must print CD
-# usage build_board.sh [clkdiv=4] [flash]
+# usage build_board.sh [clkdiv] [flash], clkdiv defaults to CLKDIV in config.mk
 set -euo pipefail
-CLKDIV="${1:-4}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
+CLKDIV="${1:-$(sed -n 's/^CLKDIV *?*= *\([0-9]*\).*/\1/p' config.mk)}"
 mkdir -p build
 
 CHIPDB="$HOME/Documents/code/nextpnr-xilinx/xilinx/xc7a35t.bin"

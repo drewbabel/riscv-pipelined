@@ -3,7 +3,7 @@ module board_top
 #(
     parameter int XLEN   = 32,
     parameter int DEPTH  = 16384,
-    parameter int ClkDiv = 32,
+    parameter int ClkDiv = 2,
     parameter int MemLatency = 20
 ) (
     input  logic        clk,

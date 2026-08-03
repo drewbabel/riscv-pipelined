@@ -26,7 +26,8 @@ module board_irq_tb ();
   always #5 clk = ~clk;
 
   board_top #(
-      .DEPTH(1024)
+      .DEPTH (1024),
+      .ClkDiv(ClkDiv)
   ) dut (
       .clk    (clk),
       .rst    (rst),

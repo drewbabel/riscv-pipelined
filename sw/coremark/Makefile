@@ -1,12 +1,13 @@
 # Build CoreMark hex images
 # EEMBC core cloned to coremark-src
 
+include ../../config.mk
+
 SRC     := ../coremark-src
 CC      := riscv64-elf-gcc
 OBJCOPY := riscv64-elf-objcopy
 OBJDUMP := riscv64-elf-objdump
 
-CORE_CLK_HZ := 25000000
 ARCH        ?= rv32i_zicsr
 
 INCS := -I. -I$(SRC)
