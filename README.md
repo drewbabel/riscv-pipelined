@@ -128,7 +128,7 @@ make view-formal MOD=hazard_unit            # open a formal waveform in Surfer
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
 make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
-./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
+./build_board.sh flash                      # build the bitstream and flash it
 ```
 
 `build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.

@@ -8,7 +8,15 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
-CLKDIV="${1:-$(sed -n 's/^CLKDIV *?*= *\([0-9]*\).*/\1/p' config.mk)}"
+CLKDIV=""
+FLASH=""
+for arg in "$@"; do
+  case "$arg" in
+    flash) FLASH=flash ;;
+    *) CLKDIV="$arg" ;;
+  esac
+done
+CLKDIV="${CLKDIV:-$(sed -n 's/^CLKDIV *?*= *\([0-9]*\).*/\1/p' config.mk)}"
 mkdir -p build
 
 CHIPDB="$HOME/Documents/code/nextpnr-xilinx/xilinx/xc7a35t.bin"
@@ -33,7 +41,7 @@ fasm2frames --db-root "$DBROOT" --part "$PART" build/design.fasm build/design.fr
 xc7frames2bit --part_file "$PARTYAML" --part_name "$PART" --frm_file build/design.frames --output_file build/design.bit 2>/dev/null
 echo "wrote build/design.bit"
 
-if [ "${2:-}" = "flash" ]; then
+if [ "$FLASH" = "flash" ]; then
   echo "flash"
   openFPGALoader -b basys3 build/design.bit
 fi
