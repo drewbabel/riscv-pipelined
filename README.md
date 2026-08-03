@@ -78,7 +78,7 @@ The core issues 437,222 memory accesses per iteration, 361,462 of them instructi
 | SymbiYosys unit proofs | `muldiv` products + handshake, `csr` interrupt path by k-induction, `hazard_unit` forwarding + stall + flush |
 | Spike lockstep co-simulation | Every retired instruction of a directed RV32IM program + a randomized regression |
 | Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
-| Basys 3 | Full system integration, CoreMark CRCs on hardware |
+| Basys 3 | Full system integration, CoreMark CRCs + all 19 Embench cycle counts + a FreeRTOS boot on hardware |
 
 A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, a simultaneous external and timer interrupt resolves to the external one, and `mret` restores `MIE` from `MPIE`.
 
