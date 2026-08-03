@@ -2,7 +2,7 @@
 #define FREERTOS_CONFIG_H
 
 /* Core and this SoC's CLINT (SiFive layout, base 0x02000000) */
-#define configCPU_CLOCK_HZ                      3125000
+#define configCPU_CLOCK_HZ                      50000000
 #define configMTIME_BASE_ADDRESS                0x0200BFF8
 #define configMTIMECMP_BASE_ADDRESS             0x02004000
 
