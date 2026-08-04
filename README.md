@@ -17,17 +17,19 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 
 ### CoreMark
 
-Compiled at `-O2` and measured on the board at each configuration's clock.
+Compiled at `-O2` and measured on the Basys 3 at each configuration's highest clock that completes a run with validated CRCs. Scores are computed from the `mcycle` tick count, which keeps a build's clock constant out of the result.
 
-| Configuration | Clock | CoreMark/sec | CoreMark/MHz |
-|---------------|-------|--------------|--------------|
-| Pipelined RV32IM, gshare, caches, 20-cycle memory model | 50.0 MHz | 76.56 | 1.53 |
-| [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | 99.37 | 2.98 |
-| [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 83.36 | 2.50 |
-| [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | 32.09 | 0.96 |
-| [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 27.85 | 1.39 |
+| Configuration | Core clock | Main memory | CoreMark/sec | CoreMark/MHz |
+|---|---|---|---|---|
+| [Pipelined RV32IM, gshare, caches](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.2) | 50.0 MHz | 20-cycle model behind both caches | 76.56 | 1.53 |
+| [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | single-cycle, uncached | 99.37 | 2.98 |
+| [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | single-cycle, uncached | 83.36 | 2.50 |
+| [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | single-cycle, uncached | 32.09 | 0.96 |
+| [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 25.0 MHz | single-cycle, uncached | 34.82 | 1.39 |
 
-The current configuration's clock is Vivado-2026.1-signed timing, with 1.255 ns of worst setup slack. The four historical configurations' clocks are the rates their boards actually ran at, since the multicycle-exception flow that signs the row above cannot close timing on their ungated 100 MHz registers at any clock.
+Only the top row faces a memory with realistic latency, which makes its CoreMark/MHz incomparable to the rows below. The four uncached configurations take `instr` and `read_data` as plain inputs with no ready handshake and have no way to wait on a slower memory, leaving a single-cycle memory as the only one they can be measured against. Dropping the top row's main memory to single-cycle latency on the same bitstream at 50.0 MHz moves the score from 76.56 to 76.92, a difference of 0.47 percent, because the caches absorb the latency. The top row's cost is the cache hit path, which spends a cycle in `IDLE` before `COMPARE` on every access and takes 1.94x the cycles per iteration that the uncached gshare configuration needs at a matched 33.3 MHz clock.
+
+Each clock is a ceiling. The cached configuration produces no valid run at divide-by-1, the three uncached pipelined configurations fail at divide-by-2, and the single-cycle baseline fails at divide-by-3. Vivado 2026.1 signs the top row's 50.0 MHz with 1.255 ns of worst setup slack. The historical configurations' registers are not enable-gated in a form the multicycle flow can constrain, which leaves their clocks hardware-validated.
 
 ### Embench
 
@@ -57,15 +59,16 @@ All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`. The pipelined core r
 
 ### Memory hierarchy
 
-The Basys 3 has no DRAM, so `mem_delay` emulates a main memory in block RAM, parameterized by latency and completing through a ready handshake. The cache rows below are measured on the board at a divide-by-4 core enable, with ticks and hit rates identical to simulation. A 200-iteration run validates the CRCs on hardware over 12.8 seconds.
+The Basys 3 has no DRAM, so `mem_delay` emulates a main memory in block RAM, parameterized by latency and completing through a ready handshake. Both rows below are measured on the Basys 3 at 50.0 MHz running CoreMark, with CRCs validated.
 
-| Configuration | Total ticks | Iterations/sec | Instruction cache | Data cache |
+| Main memory | Cycles/iteration | CoreMark/sec | Instruction cache | Data cache |
 |---|---|---|---|---|
-| No caches, single-cycle memory | 845,818 | 39.41 | | |
-| Caches, 1-cycle memory | 1,597,690 | 20.86 | 99.8% hit | 99.6% hit |
-| Caches, 20-cycle memory | 1,610,380 | 20.70 | 99.8% hit, 2.04 cycle AMAT | 99.6% hit, 2.08 cycle AMAT |
+| 1-cycle | 650,009 | 76.92 | 99.95% hit | 99.9997% hit |
+| 20-cycle | 653,098 | 76.56 | 99.95% hit | 99.9997% hit |
 
-A 20x increase in memory latency costs 0.8%, where every uncached access would pay roughly 21 cycles. Hit latency accounts for the remaining gap to the uncached figure, since both controllers spend a cycle in `IDLE` before `COMPARE`.
+A 20x increase in memory latency costs 0.47 percent. Each line fill absorbs 16.3 extra cycles, measured across the 189 misses an iteration incurs, which is what keeps the latency off the critical path.
+
+The core issues 437,222 memory accesses per iteration, 361,462 of them instruction fetches. Paying the 20-cycle latency on every one of those, as an uncached design would, works out near 9,080,000 cycles per iteration, roughly 14x the cached figure. The measured access count gives that estimate, since a design with no caches carries no ready handshake to wait on a slow memory and cannot be attached to one.
 
 ## Verification
 
@@ -75,7 +78,7 @@ A 20x increase in memory latency costs 0.8%, where every uncached access would p
 | SymbiYosys unit proofs | `muldiv` products + handshake, `csr` interrupt path by k-induction, `hazard_unit` forwarding + stall + flush |
 | Spike lockstep co-simulation | Every retired instruction of a directed RV32IM program + a randomized regression |
 | Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
-| Basys 3 | Full system integration, CoreMark CRCs on hardware |
+| Basys 3 | Full system integration, CoreMark CRCs + all 19 Embench cycle counts + a FreeRTOS boot on hardware |
 
 A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, and `formal/irq.sby` proves the trap logic separately. An interrupt is taken only when pending and enabled, a simultaneous exception outranks it, a simultaneous external and timer interrupt resolves to the external one, and `mret` restores `MIE` from `MPIE`.
 
@@ -125,7 +128,7 @@ make view-formal MOD=hazard_unit            # open a formal waveform in Surfer
 bash formal/rvfi/run.sh                     # run the full riscv-formal proof of the core
 make cosim PROG=cosim_m                     # lockstep-compare an rv32im program against Spike
 python3 tests/send_prog.py PORT prog.hex    # stream a program to the board over UART
-./build_board.sh 4 flash                    # build the bitstream at divide-by-4 and flash
+./build_board.sh flash                      # build the bitstream and flash it
 ```
 
 `build_board.sh` preserves the `pc_plus4` nets with `setattr -set keep 1 w:*pc_plus4*`, because the Yosys `xilinx_srl` pass otherwise drops the clock enable on the `pc_plus4` shift register ([YosysHQ/yosys#6059](https://github.com/YosysHQ/yosys/pull/6059)). `gate_check.sh` re-verifies the workaround after any toolchain change.

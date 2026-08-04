@@ -1,7 +1,4 @@
-# README timing repro
-# usage vivado -mode batch -source vivado/impl.tcl -tclargs <clkdiv>
-# enable every ClkDiv cycles, enabled-to-enabled paths get ClkDiv periods
-# never basys3.xdc, nextpnr XDC parser chokes on exceptions
+# Usage vivado -mode batch -source vivado/impl.tcl -tclargs <clkdiv>
 
 set clkdiv [lindex $argv 0]
 if {$clkdiv eq ""} { set clkdiv 3 }
@@ -10,7 +7,6 @@ set root   [file normalize [file join [file dirname [info script]] ..]]
 set outdir [file join $root vivado build]
 file mkdir $outdir
 
-# ClkDiv patch
 set src [file join $root rtl board_top.sv]
 set dst [file join $outdir board_top_div${clkdiv}.sv]
 set fh [open $src r]; set txt [read $fh]; close $fh
@@ -32,18 +28,15 @@ read_xdc [file join $root constraints basys3.xdc]
 synth_design -top board_top -part $part
 opt_design
 
-# all sequential except enable counter
-# IS_SEQUENTIAL, synthesis renames RAM64M to RAMD64E
-# cells cover D CE R S pins
 set seq  [get_cells -hier -quiet -filter {IS_SEQUENTIAL}]
 set tick [get_cells -hier -quiet -filter {NAME =~ *core_en_inst*cnt_reg*}]
 set gated {}
 foreach c $seq { if {[lsearch -exact $tick $c] < 0} { lappend gated $c } }
 
+# Not in basys3.xdc
 set_multicycle_path $clkdiv            -setup -from $gated -to $gated
 set_multicycle_path [expr {$clkdiv-1}] -hold  -from $gated -to $gated
 
-# before placement, router needs them
 place_design
 phys_opt_design
 route_design
@@ -52,7 +45,6 @@ write_checkpoint -force  [file join $outdir board_top_routed.dcp]
 report_utilization -file [file join $outdir utilization.rpt]
 report_timing_summary -file [file join $outdir timing_summary.rpt]
 
-# worst overall, worst multicycle
 report_timing -delay_type max -max_paths 1 -file [file join $outdir worst_path.rpt]
 report_timing -from $gated -to $gated -delay_type max -max_paths 1 \
               -file [file join $outdir worst_multicycle_path.rpt]

@@ -26,7 +26,8 @@ module board_irq_tb ();
   always #5 clk = ~clk;
 
   board_top #(
-      .DEPTH(1024)
+      .DEPTH (1024),
+      .ClkDiv(ClkDiv)
   ) dut (
       .clk    (clk),
       .rst    (rst),
@@ -99,7 +100,7 @@ module board_irq_tb ();
     $readmemh("tests/timer_irq.hex", prog);
     do_reset();
 
-    // Load the program, then catch the print the trap handler emits
+    // Catch trap print
     send_word(NWords);
     foreach (prog[i]) send_word(prog[i]);
 
