@@ -10,6 +10,8 @@
 #   make cosim PROG=cosim1       lockstep-compare tests/cosim1.s against Spike (needs spike installed)
 #   make clean                   delete build artifacts (build/, *.vcd)
 
+SHELL := /bin/bash
+
 # packages must compile before any module that imports them
 PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp_pkg.sv rtl/cache_pkg.sv
 RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
@@ -58,7 +60,13 @@ formal:
 	@test -n "$(MOD)" || { echo "usage: make formal MOD=<module>  (e.g. MOD=alu)"; exit 1; }
 	@mkdir -p build
 	sv2v -E Assert -D RISCV_FORMAL $(RTL) formal/$(MOD)_formal.sv > build/$(MOD)_formal.v
-	sby -f $(FORMAL)
+	@sby -f $(FORMAL) $(TASK) 2>&1 | tee build/$(MOD)_sby.log; rc=$${PIPESTATUS[0]}; \
+	  grep -oE '$(MOD)_formal\.v:[0-9]+' build/$(MOD)_sby.log | sort -u | while read -r hit; do \
+	    ln=$${hit##*:}; \
+	    printf '  %s:%s  %s\n' "$(MOD)_formal.v" "$$ln" \
+	      "$$(sed -n "$${ln}p" build/$(MOD)_formal.v | sed 's/^[[:space:]]*//')"; \
+	  done; \
+	  exit $$rc
 
 view:
 	@test -n "$(MOD)" || { echo "usage: make view MOD=<module>"; exit 1; }
@@ -87,7 +95,7 @@ trace:
 	@dir=$$($(pick_run)); test -n "$$dir" || exit 1; \
 	yw=$$(find $$dir -name 'trace.yw' 2>/dev/null | head -1); \
 	test -n "$$yw" || { echo "Error: no trace.yw in $$dir/, that run has no counterexample"; exit 1; }; \
-	yosys-witness display $$yw
+	yosys-witness display $$yw | cat
 
 view-formal:
 	@dir=$$($(pick_run)); test -n "$$dir" || exit 1; \
