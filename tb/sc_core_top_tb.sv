@@ -28,6 +28,7 @@ module sc_core_top_tb;
   logic                dmem_req;
   logic                dmem_ready;
   logic                periph_sel;
+  logic                irq_stim = 1'b0;
 
   logic [    Xlen-1:0] dc_rdata;
   logic                dc_ready;
@@ -60,7 +61,7 @@ module sc_core_top_tb;
       .rst_n      (rst_n),
       .instr      (instr),
       .read_data  (read_data),
-      .timer_irq  (1'b0),
+      .timer_irq  (irq_stim),
       .imem_ready (imem_ready),
       .dmem_ready (dmem_ready),
       .imem_req   (imem_req),
@@ -244,11 +245,29 @@ module sc_core_top_tb;
   endtask  // Automatic
 
   // Freeze checks
+  logic [Xlen-1:0] instr_h_q;
+  logic [Xlen-1:0] rdata_h_q;
+  logic            core_en_q;
+  logic            irq_h_q;
+
   always @(posedge clk) begin
+    instr_h_q <= dut.instr_h;
+    rdata_h_q <= dut.rdata_h;
+    core_en_q <= core_en;
+    irq_h_q   <= dut.irq_h;
+    irq_stim  <= ~irq_stim;
     if (rst_n) begin
-      if (dut.core_step && !imem_ready && !dmem_ready)
-        fail("core stepped with neither word ready");
+      if (dut.core_step && (dut.instr_cap || dut.data_cap))
+        fail("core stepped on a hold capture cycle");
       if (dut.core_step && !core_en) fail("core stepped while core_en was low");
+      if (dut.instr_cap && !core_en) fail("instruction hold captured while core_en was low");
+      if (dut.data_cap && !core_en) fail("data hold captured while core_en was low");
+      if ((dut.instr_h !== instr_h_q) && !core_en_q)
+        fail("instruction hold moved outside a core_en cycle");
+      if ((dut.rdata_h !== rdata_h_q) && !core_en_q)
+        fail("data hold moved outside a core_en cycle");
+      if ((dut.irq_h !== irq_h_q) && !core_en_q)
+        fail("interrupt hold moved outside a core_en cycle");
       if (|store_wstrb && !dmem_req) fail("byte strobe live outside the request cycle");
       if (imem_req && dmem_req) fail("fetch and data request overlapped");
     end
