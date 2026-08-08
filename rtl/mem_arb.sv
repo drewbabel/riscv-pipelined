@@ -19,6 +19,7 @@ module mem_arb
     input  logic                      dc_req_rw,
     input  logic [          XLEN-1:0] dc_req_addr,
     input  logic [      LineBits-1:0] dc_req_wdata,
+    input  logic [               3:0] dc_req_wstrb,      // Zero writes line
     output logic [      LineBits-1:0] dc_resp_rdata,
     output logic                      dc_resp_ready,
     // Boot
@@ -109,8 +110,14 @@ module mem_arb
               src <= SRC_DC;
               req_rw <= dc_req_rw;
               req_addr <= dc_req_addr;
-              req_wdata <= dc_req_wdata;
-              req_mask <= '0;
+              // Strobe opens lanes
+              if (dc_req_wstrb == 4'h0) begin
+                req_wdata <= dc_req_wdata;
+                req_mask  <= '0;
+              end else begin
+                req_wdata <= {4{dc_req_wdata[31:0]}};
+                req_mask  <= ~(MaskBits'(dc_req_wstrb) << {dc_req_addr[3:2], 2'b00});
+              end
             end else if (ic_req_valid) begin
               src <= SRC_IC;
               req_rw <= ReqRead;
