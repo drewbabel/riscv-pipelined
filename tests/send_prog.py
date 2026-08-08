@@ -29,8 +29,11 @@ def load_words(path):
 def main():
     port, hexfile = sys.argv[1], sys.argv[2]
     words = load_words(hexfile)
-    if not 1 <= len(words) <= 16384:
-        sys.exit(f"word count {len(words)} out of range 1..16384")
+    if not 1 <= len(words) <= 4194304:
+        sys.exit(
+            f"word count {len(words)} out of range 1..4194304 "
+            "(nexys_video ceiling; basys3 block RAM caps at 16384)"
+        )
     ser = serial.Serial(port, 28800, timeout=1)
     ser.write(len(words).to_bytes(4, "little"))  # 4-byte count, LSB-first
     for w in words:
