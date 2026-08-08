@@ -5,7 +5,8 @@ module board_top
     parameter int DEPTH     = 16384,
     parameter int ClkDiv    = 2,
     parameter bit UNCACHED  = 1'b0,
-    parameter bit GSHARE_EN = 1'b1
+    parameter bit GSHARE_EN = 1'b1,
+    parameter bit SINGLE_CYCLE = 1'b0
 ) (
     input  logic        clk,
     input  logic        rst,
@@ -72,6 +73,7 @@ module board_top
   logic            periph_sel;
 
   logic            imem_ready;
+  logic            imem_req;
   logic            dmem_ready;
   logic            dmem_req;
   logic            dc_ready;
@@ -327,28 +329,56 @@ module board_top
       .loading (loading)
   );
 
-  riscv_pipelined #(
-      .XLEN     (XLEN),
-      .GSHARE_EN(GSHARE_EN)
-  ) riscv_pipelined_inst (
-      .clk        (core_clk),
-      .core_en    (core_en),
-      .rst_n      (core_rst_n),
-      .instr      (instr),
-      .read_data  (read_data),
-      .timer_irq  (timer_irq),
-      .ext_irq    (ext_irq),
-      .imem_ready (imem_ready),
-      .dmem_ready (dmem_ready),
-      .dmem_req   (dmem_req),
-      .pc         (pc),
-      .mem_write  (),
-      .alu_result (),
-      .write_data (),
-      .store_wstrb(store_wstrb),
-      .store_data (store_data),
-      .mem_addr   (mem_addr)
-  );
+  // Frozen fetch
+  if (SINGLE_CYCLE) begin : g_single
+    sc_core_top #(
+        .XLEN(XLEN)
+    ) sc_core_top_inst (
+        .clk        (core_clk),
+        .core_en    (core_en),
+        .rst_n      (core_rst_n),
+        .instr      (instr),
+        .read_data  (read_data),
+        .timer_irq  (timer_irq),
+        .imem_ready (imem_ready),
+        .dmem_ready (dmem_ready),
+        .imem_req   (imem_req),
+        .dmem_req   (dmem_req),
+        .pc         (pc),
+        .mem_write  (),
+        .alu_result (),
+        .write_data (),
+        .store_wstrb(store_wstrb),
+        .store_data (store_data),
+        .mem_addr   (mem_addr)
+    );
+  end else begin : g_pipelined
+    riscv_pipelined #(
+        .XLEN     (XLEN),
+        .GSHARE_EN(GSHARE_EN)
+    ) riscv_pipelined_inst (
+        .clk        (core_clk),
+        .core_en    (core_en),
+        .rst_n      (core_rst_n),
+        .instr      (instr),
+        .read_data  (read_data),
+        .timer_irq  (timer_irq),
+        .ext_irq    (ext_irq),
+        .imem_ready (imem_ready),
+        .dmem_ready (dmem_ready),
+        .dmem_req   (dmem_req),
+        .pc         (pc),
+        .mem_write  (),
+        .alu_result (),
+        .write_data (),
+        .store_wstrb(store_wstrb),
+        .store_data (store_data),
+        .mem_addr   (mem_addr)
+    );
+
+    // Fetch never pauses
+    assign imem_req = 1'b1;
+  end
 
   // Bare word paths
   if (UNCACHED) begin : g_uncached
@@ -359,7 +389,7 @@ module board_top
         .clk       (core_clk),
         .core_en   (core_en),
         .rst_n     (core_rst_n),
-        .cpu_valid (1'b1),
+        .cpu_valid (imem_req),
         .cpu_rw    (1'b0),
         .cpu_addr  (pc),
         .cpu_wdata ('0),
@@ -408,7 +438,7 @@ module board_top
         .clk       (core_clk),
         .core_en   (core_en),
         .rst_n     (core_rst_n),
-        .cpu_valid (1'b1),
+        .cpu_valid (imem_req),
         .cpu_addr  (pc),
         .cpu_rdata (instr),
         .cpu_ready (imem_ready),
