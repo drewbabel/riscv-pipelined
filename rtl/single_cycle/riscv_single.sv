@@ -196,7 +196,6 @@ module riscv_single
     endcase
   end
 
-  // Replicate rs2, strobe picks lane
   always_comb begin
     store_data  = write_data;
     store_wstrb = 4'h0;
