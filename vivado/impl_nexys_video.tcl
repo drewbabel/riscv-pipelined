@@ -1,7 +1,11 @@
-# Usage vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs <clkdiv>
+# Usage vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs <clkdiv> <uncached> <gshare>
 
-set clkdiv [lindex $argv 0]
-if {$clkdiv eq ""} { set clkdiv 2 }
+set clkdiv   [lindex $argv 0]
+set uncached [lindex $argv 1]
+set gshare   [lindex $argv 2]
+if {$clkdiv eq ""}   { set clkdiv 2 }
+if {$uncached eq ""} { set uncached 0 }
+if {$gshare eq ""}   { set gshare 1 }
 set part   xc7a200tsbg484-1
 set root   [file normalize [file join [file dirname [info script]] ..]]
 set outdir [file join $root vivado build nv]
@@ -37,7 +41,8 @@ read_verilog -sv $rest
 read_verilog -sv $dst
 read_xdc [file join $root constraints nexys_video.xdc]
 
-synth_design -top board_top -part $part
+synth_design -top board_top -part $part \
+             -generic UNCACHED=$uncached -generic GSHARE_EN=$gshare
 opt_design
 
 # Gated cells only
