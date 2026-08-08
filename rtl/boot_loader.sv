@@ -1,6 +1,6 @@
 module boot_loader #(
     parameter int XLEN  = 32,
-    parameter int DEPTH = 64
+    parameter int DEPTH = 16384
 ) (
     input  logic            clk,
     input  logic            core_en,
@@ -19,11 +19,17 @@ module boot_loader #(
     DONE
   } state_t;
 
+  localparam logic [XLEN-1:0] CapWords = XLEN'(DEPTH);
+
   state_t state, next_state;
   logic [1:0] cnt_byte;
   logic [XLEN-1:0] cnt_word;
   logic [XLEN-1:0] max_word;
+  logic [XLEN-1:0] limit;
   logic [XLEN-1:0] acc;
+
+  // Memory bounds load
+  assign limit = (max_word > CapWords) ? CapWords : max_word;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
@@ -49,7 +55,7 @@ module boot_loader #(
     next_state = state;
     case (state)
       COUNT: if (rx_valid && cnt_byte == 2'd3) next_state = LOAD;
-      LOAD: if (cnt_word == max_word) next_state = DONE;
+      LOAD: if (cnt_word == limit) next_state = DONE;
       DONE: ;  // Terminates
       default: ;
     endcase

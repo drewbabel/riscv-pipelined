@@ -2,7 +2,7 @@ module board_top
   import cache_pkg::*;
 #(
     parameter int XLEN      = 32,
-    parameter int DEPTH     = 16384,
+    parameter int DEPTH     = 4194304,
     parameter int ClkDiv    = 2,
     parameter bit UNCACHED  = 1'b0,
     parameter bit GSHARE_EN = 1'b1,
