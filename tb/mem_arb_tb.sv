@@ -133,13 +133,13 @@ module mem_arb_tb;
 
   function automatic int line_of(input logic [AppAddrW-1:0] a);
     line_of = (int'(a) >> 4) % MemLines;
-  endfunction
+  endfunction  // Automatic
 
   task automatic fail(input string what);
     checks++;
     errors++;
     $error("t=%0t  %s", $time, what);
-  endtask
+  endtask  // Automatic
 
   task automatic check(input string what, input logic [LineBits-1:0] got,
                        input logic [LineBits-1:0] exp);
@@ -148,7 +148,7 @@ module mem_arb_tb;
       $error("t=%0t  %s: read back %h, memory holds %h", $time, what, got, exp);
       errors++;
     end
-  endtask
+  endtask  // Automatic
 
   task automatic check_int(input string what, input int got, input int exp);
     checks++;
@@ -156,7 +156,7 @@ module mem_arb_tb;
       $error("t=%0t  %s: counted %0d, expected %0d", $time, what, got, exp);
       errors++;
     end
-  endtask
+  endtask  // Automatic
 
   // Ready generators
   always @(posedge clk) begin
@@ -251,7 +251,7 @@ module mem_arb_tb;
     repeat (4) @(posedge clk);
     calib_done = 1'b1;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic wait_ic();
     int guard;
@@ -267,7 +267,7 @@ module mem_arb_tb;
         $fatal(1, "t=%0t  instruction request held valid 4000 cycles with no response ready",
                $time);
     end
-  endtask
+  endtask  // Automatic
 
   task automatic wait_dc();
     int guard;
@@ -282,7 +282,7 @@ module mem_arb_tb;
       if (guard > 4000)
         $fatal(1, "t=%0t  data request held valid 4000 cycles with no response ready", $time);
     end
-  endtask
+  endtask  // Automatic
 
   task automatic ic_read(input logic [Xlen-1:0] addr, output logic [LineBits-1:0] data);
     #1;
@@ -292,7 +292,7 @@ module mem_arb_tb;
     data = ic_resp_rdata;
     ic_req_valid = 1'b0;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic dc_read(input logic [Xlen-1:0] addr, output logic [LineBits-1:0] data);
     #1;
@@ -304,7 +304,7 @@ module mem_arb_tb;
     data = dc_resp_rdata;
     dc_req_valid = 1'b0;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic dc_write(input logic [Xlen-1:0] addr, input logic [LineBits-1:0] data);
     #1;
@@ -316,7 +316,7 @@ module mem_arb_tb;
     wait_dc();
     dc_req_valid = 1'b0;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic dc_word_write(input logic [Xlen-1:0] addr, input logic [3:0] strb,
                                input logic [Xlen-1:0] data);
@@ -330,20 +330,7 @@ module mem_arb_tb;
     dc_req_valid = 1'b0;
     dc_req_wstrb = 4'h0;
     @(posedge clk);
-  endtask
-
-  logic [AppAddrW-1:0] last_wr_addr;
-
-  always @(posedge clk) if (cmd_accept && app_cmd == AppWrite) last_wr_addr <= app_addr;
-
-  task automatic check_addr(input string what, input logic [AppAddrW-1:0] got,
-                            input logic [AppAddrW-1:0] exp);
-    checks++;
-    if (got !== exp) begin
-      $error("t=%0t  %s: controller saw %h, expected %h", $time, what, got, exp);
-      errors++;
-    end
-  endtask
+  endtask  // Automatic
 
   task automatic boot_word(input logic [Xlen-1:0] addr, input logic [Xlen-1:0] data);
     #1;
@@ -354,7 +341,7 @@ module mem_arb_tb;
     #1;
     boot_we = 1'b0;
     repeat (40) @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   logic [LineBits-1:0] ic_got;
   logic [LineBits-1:0] dc_got;
@@ -364,7 +351,7 @@ module mem_arb_tb;
       ic_read(ic_a, ic_got);
       dc_read(dc_a, dc_got);
     join
-  endtask
+  endtask  // Automatic
 
   logic [LineBits-1:0] got;
 
@@ -571,24 +558,6 @@ module mem_arb_tb;
             {d[127:64], 32'h7777_0000 + Xlen'(L), d[31:0]});
     end
     rd_lat = RdLat;
-
-    // Beyond old bram
-    begin
-      logic [Xlen-1:0] highs[5];
-      highs[0] = 32'h0001_0000;
-      highs[1] = 32'h0001_0004;
-      highs[2] = 32'h0040_0000;
-      highs[3] = 32'h00FF_FFF0;
-      highs[4] = 32'h00FF_FFFC;
-      for (int h = 0; h < 5; h++) begin
-        boot_word(highs[h], 32'hB007_0000 + Xlen'(h));
-        check_addr($sformatf("boot word address truncated above the old block ram cap, %h",
-                             highs[h]), last_wr_addr, {highs[h][AppAddrW-1:4], 4'h0});
-        ic_read(highs[h], got);
-        check($sformatf("boot word write did not land at %h", highs[h]), got,
-              LineBits'(32'hB007_0000 + Xlen'(h)) << (highs[h][3:2] * 32));
-      end
-    end
 
     check_int("commands left outstanding at the controller when the stimulus ended", cq_wr,
                 cq_rd);

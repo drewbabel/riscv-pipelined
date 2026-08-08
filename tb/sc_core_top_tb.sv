@@ -150,11 +150,11 @@ module sc_core_top_tb;
 
   function automatic int line_of(input logic [Xlen-1:0] a);
     line_of = (int'(a) >> 4) % MemLines;
-  endfunction
+  endfunction  // Automatic
 
   function automatic int word_of(input logic [Xlen-1:0] a);
     word_of = (int'(a) >> 2) % LineWords;
-  endfunction
+  endfunction  // Automatic
 
   // Instruction responder
   logic                i_busy;
@@ -242,7 +242,7 @@ module sc_core_top_tb;
     checks++;
     errors++;
     $error("t=%0t  %s", $time, what);
-  endtask
+  endtask  // Automatic
 
   // Freeze checks
   logic [Xlen-1:0] instr_h_q;
@@ -279,11 +279,11 @@ module sc_core_top_tb;
       $error("%s = 0x%08h, expected 0x%08h", name, got, exp);
       errors++;
     end
-  endtask
+  endtask  // Automatic
 
   function automatic logic [Xlen-1:0] reg_of(input int n);
     reg_of = dut.riscv_single_inst.datapath_inst.regfile_inst.regfile_mem[n];
-  endfunction
+  endfunction  // Automatic
 
   int ticks = 0;
 

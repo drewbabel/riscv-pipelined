@@ -105,17 +105,17 @@ module mem_word_if_tb;
 
   function automatic int line_of(input logic [Xlen-1:0] a);
     line_of = (int'(a) >> 4) % MemLines;
-  endfunction
+  endfunction  // Automatic
 
   function automatic int word_of(input logic [Xlen-1:0] a);
     word_of = (int'(a) >> 2) % 4;
-  endfunction
+  endfunction  // Automatic
 
   task automatic fail(input string what);
     checks++;
     errors++;
     $error("t=%0t  %s", $time, what);
-  endtask
+  endtask  // Automatic
 
   task automatic check(input string what, input logic [Xlen-1:0] got,
                        input logic [Xlen-1:0] exp);
@@ -124,7 +124,7 @@ module mem_word_if_tb;
       $error("t=%0t  %s: saw %h, memory holds %h", $time, what, got, exp);
       errors++;
     end
-  endtask
+  endtask  // Automatic
 
   task automatic check_int(input string what, input int got, input int exp);
     checks++;
@@ -132,7 +132,7 @@ module mem_word_if_tb;
       $error("t=%0t  %s: counted %0d, expected %0d", $time, what, got, exp);
       errors++;
     end
-  endtask
+  endtask  // Automatic
 
   // Instruction responder
   logic                i_busy;
@@ -231,7 +231,7 @@ module mem_word_if_tb;
     repeat (3) @(posedge clk);
     rst_n = 1'b1;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic wait_i();
     int guard;
@@ -245,7 +245,7 @@ module mem_word_if_tb;
       guard++;
       if (guard > 4000) $fatal(1, "t=%0t  instruction access never completed", $time);
     end
-  endtask
+  endtask  // Automatic
 
   task automatic wait_d();
     int guard;
@@ -259,7 +259,7 @@ module mem_word_if_tb;
       guard++;
       if (guard > 4000) $fatal(1, "t=%0t  data access never completed", $time);
     end
-  endtask
+  endtask  // Automatic
 
   task automatic fetch(input logic [Xlen-1:0] addr, output logic [Xlen-1:0] data);
     #1;
@@ -270,7 +270,7 @@ module mem_word_if_tb;
     i_cpu_valid = 1'b0;
     i_done++;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic load(input logic [Xlen-1:0] addr, output logic [Xlen-1:0] data);
     #1;
@@ -283,7 +283,7 @@ module mem_word_if_tb;
     d_cpu_valid = 1'b0;
     d_done++;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   task automatic store(input logic [Xlen-1:0] addr, input logic [3:0] strb,
                        input logic [Xlen-1:0] data);
@@ -298,7 +298,7 @@ module mem_word_if_tb;
     d_cpu_wstrb = 4'h0;
     d_done++;
     @(posedge clk);
-  endtask
+  endtask  // Automatic
 
   logic [Xlen-1:0] got;
 
