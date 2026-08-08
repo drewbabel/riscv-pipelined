@@ -493,7 +493,7 @@ module datapath
         .predict_pc   (pc),
         .predict_taken(bp_taken),
         .predict_index(bp_index),
-        .update_valid (branch_ex && valid_ex && !mem_hold), // resolved branches
+        .update_valid (branch_ex && valid_ex && !mem_hold), // Resolved branches
         .update_taken (branch_taken_ex),
         .update_index (bp_index_ex)
     );
@@ -508,7 +508,7 @@ module datapath
         .hit           (btb_hit),
         .target        (btb_target),
         .is_cond       (btb_is_cond),
-        .update_valid  (pc_src_ex && !mem_hold), // taken transfers
+        .update_valid  (pc_src_ex && !mem_hold), // Taken transfers
         .update_pc     (pc_ex),
         .update_target (pc_target_ex),
         .update_is_cond(branch_ex)

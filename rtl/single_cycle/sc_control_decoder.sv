@@ -38,9 +38,9 @@ module sc_control_decoder
   localparam logic [1:0] ResPc4 = 2'd2;
 
   // alu_op
-  localparam logic [1:0] AluOpAdd = 2'b00;  // address / pc math
-  localparam logic [1:0] AluOpBranch = 2'b01;  // compare for branches
-  localparam logic [1:0] AluOpFunct = 2'b10;  // decode from funct3/funct7
+  localparam logic [1:0] AluOpAdd = 2'b00;  // Pc math
+  localparam logic [1:0] AluOpBranch = 2'b01;  // Branch compare
+  localparam logic [1:0] AluOpFunct = 2'b10;  // Funct3/funct7 decode
 
   always_comb begin
     reg_write     = 1'b0;
@@ -59,13 +59,13 @@ module sc_control_decoder
     is_mret       = 1'b0;
 
     case (op)
-      OpcodeOp: begin  // add, sub, and, or, xor, sll, srl, sra, slt, sltu
+      OpcodeOp: begin
         reg_write = 1'b1;
         alu_src   = 1'b0;
         alu_op    = AluOpFunct;
       end
 
-      OpcodeOpImm: begin  // addi, andi, ori, xori, slli, srli, srai, slti, sltiu
+      OpcodeOpImm: begin
         reg_write = 1'b1;
         imm_src   = ImmI;
         alu_src   = 1'b1;
@@ -87,7 +87,7 @@ module sc_control_decoder
         alu_op    = AluOpAdd;
       end
 
-      OpcodeBranch: begin  // beq, bne, blt, bge, bltu, bgeu
+      OpcodeBranch: begin
         imm_src = ImmB;
         alu_src = 1'b0;
         branch  = 1'b1;
@@ -107,8 +107,8 @@ module sc_control_decoder
         alu_src       = 1'b1;
         result_src    = ResPc4;
         jump          = 1'b1;
-        alu_op        = AluOpAdd;  // alu computes rs1 + imm as the target
-        pc_target_src = 1'b1;  // pc target comes from the alu, not pc + imm
+        alu_op        = AluOpAdd;  // Target via alu
+        pc_target_src = 1'b1;  // Target from alu
       end
 
       OpcodeLui: begin  // lui

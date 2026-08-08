@@ -31,10 +31,10 @@ module sc_csr
     input logic is_mret,
     input logic timer_irq,
 
-    // Zicsr read value to writeback mux
+    // Zicsr read value
     output logic [XLEN-1:0] csr_rdata,
 
-    // Redirects into pc next-address mux
+    // Pc redirects
     output logic            trap_taken,
     output logic [XLEN-1:0] trap_vector,
     output logic            mret_taken,
@@ -70,10 +70,10 @@ module sc_csr
   assign trap_taken  = exc_illegal | exc_ecall | exc_ebreak | exc_instr_misaligned
                         | exc_load_misaligned | exc_store_misaligned
                         | (timer_irq & mstatus[MstatusMie] & mie[Mtie]);
-  // Reject if trap, or if set/clear with zero source
+  // Reject zero-source clears
   assign csr_write_en = csr_access && !trap_taken &&
                         !((funct3[1:0] == 2'b10 || funct3[1:0] == 2'b11) && (csr_wsrc == '0));
-  assign trap_vector = {mtvec[31:2], 2'b00};  // Divide by 4 = remove last 2 bits
+  assign trap_vector = {mtvec[31:2], 2'b00};  // Clear low bits
   assign mret_taken = is_mret;
   assign mepc_out = mepc;
 
@@ -133,7 +133,7 @@ module sc_csr
       minstret <= '0;
       minstreth <= '0;
     end else if (core_en) begin
-      if (!trap_taken) begin  // retired only
+      if (!trap_taken) begin  // Retired only
         minstret  <= minstret + 1;
         minstreth <= (minstret == '1) ? minstreth + 1 : minstreth;
       end

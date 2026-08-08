@@ -1,4 +1,4 @@
-# Usage vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs <clkdiv> <uncached> <gshare> <single_cycle>
+# Tclargs order fixed
 
 set clkdiv   [lindex $argv 0]
 set uncached [lindex $argv 1]
