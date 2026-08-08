@@ -1,11 +1,13 @@
-# Usage vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs <clkdiv> <uncached> <gshare>
+# Usage vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs <clkdiv> <uncached> <gshare> <single_cycle>
 
 set clkdiv   [lindex $argv 0]
 set uncached [lindex $argv 1]
 set gshare   [lindex $argv 2]
+set single   [lindex $argv 3]
 if {$clkdiv eq ""}   { set clkdiv 2 }
 if {$uncached eq ""} { set uncached 0 }
 if {$gshare eq ""}   { set gshare 1 }
+if {$single eq ""}   { set single 0 }
 set part   xc7a200tsbg484-1
 set root   [file normalize [file join [file dirname [info script]] ..]]
 set outdir [file join $root vivado build nv]
@@ -38,11 +40,13 @@ foreach f [lsort [glob [file join $root rtl *.sv]]] {
 }
 read_verilog -sv $pkgs
 read_verilog -sv $rest
+if {$single} { read_verilog -sv [lsort [glob [file join $root rtl single_cycle *.sv]]] }
 read_verilog -sv $dst
 read_xdc [file join $root constraints nexys_video.xdc]
 
 synth_design -top board_top -part $part \
-             -generic UNCACHED=$uncached -generic GSHARE_EN=$gshare
+             -generic UNCACHED=$uncached -generic GSHARE_EN=$gshare \
+             -generic SINGLE_CYCLE=$single
 opt_design
 
 # Gated cells only
