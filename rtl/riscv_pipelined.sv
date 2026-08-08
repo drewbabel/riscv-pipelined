@@ -1,7 +1,8 @@
 module riscv_pipelined
   import alu_pkg::*;
 #(
-    parameter int XLEN = 32
+    parameter int XLEN      = 32,
+    parameter bit GSHARE_EN = 1'b1
 ) (
     input  logic            clk,
     input  logic            core_en,
@@ -52,7 +53,8 @@ module riscv_pipelined
 );
 
   datapath #(
-      .XLEN(XLEN)
+      .XLEN     (XLEN),
+      .GSHARE_EN(GSHARE_EN)
   ) datapath_inst (
       .clk        (clk),
       .core_en    (core_en),

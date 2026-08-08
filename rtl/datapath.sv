@@ -4,7 +4,8 @@ module datapath
   import muldiv_pkg::*;
   import bp_pkg::*;
 #(
-    parameter int XLEN = 32
+    parameter int XLEN      = 32,
+    parameter bit GSHARE_EN = 1'b1
 ) (
     input  logic            clk,
     input  logic            core_en,
@@ -482,35 +483,44 @@ module datapath
   assign muldiv_start = is_muldiv_ex && !muldiv_busy && !muldiv_done;
 
   // Branch prediction
-  gshare #(
-      .XLEN(XLEN)
-  ) gshare_inst (
-      .clk          (clk),
-      .core_en      (core_en),
-      .rst_n        (rst_n),
-      .predict_pc   (pc),
-      .predict_taken(bp_taken),
-      .predict_index(bp_index),
-      .update_valid (branch_ex && valid_ex && !mem_hold), // resolved branches
-      .update_taken (branch_taken_ex),
-      .update_index (bp_index_ex)
-  );
+  if (GSHARE_EN) begin : g_bp
+    gshare #(
+        .XLEN(XLEN)
+    ) gshare_inst (
+        .clk          (clk),
+        .core_en      (core_en),
+        .rst_n        (rst_n),
+        .predict_pc   (pc),
+        .predict_taken(bp_taken),
+        .predict_index(bp_index),
+        .update_valid (branch_ex && valid_ex && !mem_hold), // Resolved branches
+        .update_taken (branch_taken_ex),
+        .update_index (bp_index_ex)
+    );
 
-  btb #(
-      .XLEN(XLEN)
-  ) btb_inst (
-      .clk           (clk),
-      .core_en       (core_en),
-      .rst_n         (rst_n),
-      .lookup_pc     (pc),
-      .hit           (btb_hit),
-      .target        (btb_target),
-      .is_cond       (btb_is_cond),
-      .update_valid  (pc_src_ex && !mem_hold), // taken transfers
-      .update_pc     (pc_ex),
-      .update_target (pc_target_ex),
-      .update_is_cond(branch_ex)
-  );
+    btb #(
+        .XLEN(XLEN)
+    ) btb_inst (
+        .clk           (clk),
+        .core_en       (core_en),
+        .rst_n         (rst_n),
+        .lookup_pc     (pc),
+        .hit           (btb_hit),
+        .target        (btb_target),
+        .is_cond       (btb_is_cond),
+        .update_valid  (pc_src_ex && !mem_hold), // Taken transfers
+        .update_pc     (pc_ex),
+        .update_target (pc_target_ex),
+        .update_is_cond(branch_ex)
+    );
+  end else begin : g_no_bp
+    // Always not taken
+    assign bp_taken    = 1'b0;
+    assign bp_index    = '0;
+    assign btb_hit     = 1'b0;
+    assign btb_target  = '0;
+    assign btb_is_cond = 1'b0;
+  end
 
 `ifdef RISCV_FORMAL_ABSTRACT_BP
   (* anyseq *) logic abs_predict_taken;

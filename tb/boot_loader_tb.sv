@@ -4,6 +4,8 @@ module boot_loader_tb ();
   int errors = 0;
 
   localparam int XLEN = 32;
+  localparam int Depth = 20000;
+  localparam int SmallDepth = 32;
 
   logic            clk = 1'b0;
   logic            rst_n;
@@ -14,14 +16,21 @@ module boot_loader_tb ();
   logic [XLEN-1:0] wdata;
   logic            loading;
 
+  logic            small_we;
+  logic [XLEN-1:0] small_waddr;
+  logic [XLEN-1:0] small_wdata;
+  logic            small_loading;
+  logic [XLEN-1:0] small_idx = '0;
+
   logic [    31:0] prog             [];
-  logic [     7:0] write_idx = 8'd0;
-  logic [     7:0] data_cnt;
+  logic [XLEN-1:0] write_idx = '0;
+  logic [XLEN-1:0] data_cnt;
 
   always #5 clk = ~clk;
 
   boot_loader #(
-      .XLEN(XLEN)
+      .XLEN (XLEN),
+      .DEPTH(Depth)
   ) dut (
       .clk     (clk),
       .core_en (1'b1),
@@ -69,8 +78,8 @@ module boot_loader_tb ();
   endtask  // Automatic
 
   task automatic load_data();
-    send_word({24'd0, data_cnt});
-    foreach (prog[i]) send_word(prog[i]);
+    send_word(data_cnt);
+    for (int i = 0; i < prog.size(); i++) send_word(prog[i]);
   endtask  // Automatic
 
   initial begin
@@ -78,19 +87,24 @@ module boot_loader_tb ();
     $dumpvars(0, boot_loader_tb);
     do_reset();
 
-    data_cnt = 8'd50;
-    prog = new[{24'd0, data_cnt}];
+    // Past old cap
+    data_cnt = 32'd16400;
+    prog = new[data_cnt];
 
     prog[0] = 32'hAABBCCDD;
-    for (int i = 1; i < 50; i++) begin
+    for (int i = 1; i < int'(data_cnt); i++) begin
       prog[i] = $urandom();
     end
+    prog[16383] = 32'h1234_5678;
+    prog[16384] = 32'h9ABC_DEF0;
 
     load_data();
 
     repeat (2) @(posedge clk);
     check("loading", {31'd0, loading}, 32'd0);
-    check("write_idx", {24'd0, write_idx}, {24'd0, data_cnt});
+    check("write_idx", write_idx, data_cnt);
+    check("small_loading", {31'd0, small_loading}, 32'd0);
+    check("small_idx", small_idx, XLEN'(SmallDepth));
     verdict();
   end
 
@@ -100,6 +114,27 @@ module boot_loader_tb ();
       check("wdata", wdata, prog[write_idx]);
       write_idx++;
     end
+    if (small_we) begin
+      check("small_waddr", small_waddr, small_idx * 4);
+      check("small_wdata", small_wdata, prog[small_idx]);
+      small_idx++;
+    end
   end
+
+  // Depth clamps load
+  boot_loader #(
+      .XLEN (XLEN),
+      .DEPTH(SmallDepth)
+  ) dut_small (
+      .clk     (clk),
+      .core_en (1'b1),
+      .rst_n   (rst_n),
+      .rx_valid(rx_valid),
+      .rx_data (rx_data),
+      .we      (small_we),
+      .waddr   (small_waddr),
+      .wdata   (small_wdata),
+      .loading (small_loading)
+  );
 
 endmodule

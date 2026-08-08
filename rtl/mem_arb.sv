@@ -19,6 +19,7 @@ module mem_arb
     input  logic                      dc_req_rw,
     input  logic [          XLEN-1:0] dc_req_addr,
     input  logic [      LineBits-1:0] dc_req_wdata,
+    input  logic [               3:0] dc_req_wstrb,      // Zero writes line
     output logic [      LineBits-1:0] dc_resp_rdata,
     output logic                      dc_resp_ready,
     // Boot
@@ -32,7 +33,7 @@ module mem_arb
     input  logic                      app_rdy,
     // Controller write data
     output logic [      LineBits-1:0] app_wdf_data,
-    output logic [      MaskBits-1:0] app_wdf_mask,      // 1 = supress write, 0 = write
+    output logic [      MaskBits-1:0] app_wdf_mask,      // Active low mask
     output logic                      app_wdf_wren,
     output logic                      app_wdf_end,
     input  logic                      app_wdf_rdy,
@@ -71,7 +72,7 @@ module mem_arb
   src_t                src;
 
   logic                cmd_done;  // Command handshake done
-  logic                wdf_done;  // Write data handshake done
+  logic                wdf_done;  // Write handshake done
   logic                resp_done;  // Response delivered
 
   logic [    XLEN-1:0] req_addr;
@@ -95,7 +96,7 @@ module mem_arb
       state <= next_state;
       case (state)
         IDLE: begin
-          // Latch request (priority: boot > dcache > icache)
+          // Boot priority latch
           if (core_en) begin
             cmd_done <= 1'b0;
             wdf_done <= 1'b0;
@@ -104,13 +105,19 @@ module mem_arb
               req_rw <= ReqWrite;
               req_addr <= boot_addr;
               req_wdata <= {4{boot_wdata}};
-              req_mask <= ~(16'hF << {boot_addr[3:2], 2'b00});  // Only open selected word
+              req_mask <= ~(16'hF << {boot_addr[3:2], 2'b00});  // Open selected word
             end else if (dc_req_valid) begin
               src <= SRC_DC;
               req_rw <= dc_req_rw;
               req_addr <= dc_req_addr;
-              req_wdata <= dc_req_wdata;
-              req_mask <= '0;
+              // Strobe opens lanes
+              if (dc_req_wstrb == 4'h0) begin
+                req_wdata <= dc_req_wdata;
+                req_mask  <= '0;
+              end else begin
+                req_wdata <= {4{dc_req_wdata[31:0]}};
+                req_mask  <= ~(MaskBits'(dc_req_wstrb) << {dc_req_addr[3:2], 2'b00});
+              end
             end else if (ic_req_valid) begin
               src <= SRC_IC;
               req_rw <= ReqRead;

@@ -1,9 +1,12 @@
 module board_top
   import cache_pkg::*;
 #(
-    parameter int XLEN   = 32,
-    parameter int DEPTH  = 16384,
-    parameter int ClkDiv = 2
+    parameter int XLEN      = 32,
+    parameter int DEPTH     = 4194304,
+    parameter int ClkDiv    = 2,
+    parameter bit UNCACHED  = 1'b0,
+    parameter bit GSHARE_EN = 1'b1,
+    parameter bit SINGLE_CYCLE = 1'b0
 ) (
     input  logic        clk,
     input  logic        rst,
@@ -70,6 +73,7 @@ module board_top
   logic            periph_sel;
 
   logic            imem_ready;
+  logic            imem_req;
   logic            dmem_ready;
   logic            dmem_req;
   logic            dc_ready;
@@ -84,6 +88,7 @@ module board_top
   logic                dc_mem_rw;
   logic [    XLEN-1:0] dc_mem_addr;
   logic [LineBits-1:0] dc_mem_wdata;
+  logic [         3:0] dc_mem_wstrb;
   logic [LineBits-1:0] dc_mem_rdata;
   logic                dc_mem_ready;
 
@@ -324,68 +329,153 @@ module board_top
       .loading (loading)
   );
 
-  riscv_pipelined #(
-      .XLEN(XLEN)
-  ) riscv_pipelined_inst (
-      .clk        (core_clk),
-      .core_en    (core_en),
-      .rst_n      (core_rst_n),
-      .instr      (instr),
-      .read_data  (read_data),
-      .timer_irq  (timer_irq),
-      .ext_irq    (ext_irq),
-      .imem_ready (imem_ready),
-      .dmem_ready (dmem_ready),
-      .dmem_req   (dmem_req),
-      .pc         (pc),
-      .mem_write  (),
-      .alu_result (),
-      .write_data (),
-      .store_wstrb(store_wstrb),
-      .store_data (store_data),
-      .mem_addr   (mem_addr)
-  );
+  // Frozen fetch
+  if (SINGLE_CYCLE) begin : g_single
+    sc_core_top #(
+        .XLEN(XLEN)
+    ) sc_core_top_inst (
+        .clk        (core_clk),
+        .core_en    (core_en),
+        .rst_n      (core_rst_n),
+        .instr      (instr),
+        .read_data  (read_data),
+        .timer_irq  (timer_irq),
+        .imem_ready (imem_ready),
+        .dmem_ready (dmem_ready),
+        .imem_req   (imem_req),
+        .dmem_req   (dmem_req),
+        .pc         (pc),
+        .mem_write  (),
+        .alu_result (),
+        .write_data (),
+        .store_wstrb(store_wstrb),
+        .store_data (store_data),
+        .mem_addr   (mem_addr)
+    );
+  end else begin : g_pipelined
+    riscv_pipelined #(
+        .XLEN     (XLEN),
+        .GSHARE_EN(GSHARE_EN)
+    ) riscv_pipelined_inst (
+        .clk        (core_clk),
+        .core_en    (core_en),
+        .rst_n      (core_rst_n),
+        .instr      (instr),
+        .read_data  (read_data),
+        .timer_irq  (timer_irq),
+        .ext_irq    (ext_irq),
+        .imem_ready (imem_ready),
+        .dmem_ready (dmem_ready),
+        .dmem_req   (dmem_req),
+        .pc         (pc),
+        .mem_write  (),
+        .alu_result (),
+        .write_data (),
+        .store_wstrb(store_wstrb),
+        .store_data (store_data),
+        .mem_addr   (mem_addr)
+    );
 
-  icache #(
-      .XLEN(XLEN)
-  ) icache_inst (
-      .clk       (core_clk),
-      .core_en   (core_en),
-      .rst_n     (core_rst_n),
-      .cpu_valid (1'b1),
-      .cpu_addr  (pc),
-      .cpu_rdata (instr),
-      .cpu_ready (imem_ready),
-      .mem_valid (ic_mem_valid),
-      .mem_addr  (ic_mem_addr),
-      .mem_rdata (ic_mem_rdata),
-      .mem_ready (ic_mem_ready),
-      .hit_count (ic_hits),
-      .miss_count(ic_misses)
-  );
+    // Fetch never pauses
+    assign imem_req = 1'b1;
+  end
 
-  dcache #(
-      .XLEN(XLEN)
-  ) dcache_inst (
-      .clk       (core_clk),
-      .core_en   (core_en),
-      .rst_n     (core_rst_n),
-      .cpu_valid (dmem_req && !periph_sel),
-      .cpu_rw    (|store_wstrb),
-      .cpu_addr  (mem_addr),
-      .cpu_wdata (store_data),
-      .cpu_wstrb (store_wstrb),
-      .cpu_rdata (dc_rdata),
-      .cpu_ready (dc_ready),
-      .mem_valid (dc_mem_valid),
-      .mem_rw    (dc_mem_rw),
-      .mem_addr  (dc_mem_addr),
-      .mem_wdata (dc_mem_wdata),
-      .mem_rdata (dc_mem_rdata),
-      .mem_ready (dc_mem_ready),
-      .hit_count (dc_hits),
-      .miss_count(dc_misses)
-  );
+  // Bare word paths
+  if (UNCACHED) begin : g_uncached
+    mem_word_if #(
+        .XLEN(XLEN),
+        .RW  (1'b0)
+    ) icache_inst (
+        .clk       (core_clk),
+        .core_en   (core_en),
+        .rst_n     (core_rst_n),
+        .cpu_valid (imem_req),
+        .cpu_rw    (1'b0),
+        .cpu_addr  (pc),
+        .cpu_wdata ('0),
+        .cpu_wstrb ('0),
+        .cpu_rdata (instr),
+        .cpu_ready (imem_ready),
+        .mem_valid (ic_mem_valid),
+        .mem_rw    (),
+        .mem_addr  (ic_mem_addr),
+        .mem_wdata (),
+        .mem_wstrb (),
+        .mem_rdata (ic_mem_rdata),
+        .mem_ready (ic_mem_ready),
+        .hit_count (ic_hits),
+        .miss_count(ic_misses)
+    );
+
+    mem_word_if #(
+        .XLEN(XLEN),
+        .RW  (1'b1)
+    ) dcache_inst (
+        .clk       (core_clk),
+        .core_en   (core_en),
+        .rst_n     (core_rst_n),
+        .cpu_valid (dmem_req && !periph_sel),
+        .cpu_rw    (|store_wstrb),
+        .cpu_addr  (mem_addr),
+        .cpu_wdata (store_data),
+        .cpu_wstrb (store_wstrb),
+        .cpu_rdata (dc_rdata),
+        .cpu_ready (dc_ready),
+        .mem_valid (dc_mem_valid),
+        .mem_rw    (dc_mem_rw),
+        .mem_addr  (dc_mem_addr),
+        .mem_wdata (dc_mem_wdata),
+        .mem_wstrb (dc_mem_wstrb),
+        .mem_rdata (dc_mem_rdata),
+        .mem_ready (dc_mem_ready),
+        .hit_count (dc_hits),
+        .miss_count(dc_misses)
+    );
+  end else begin : g_cached
+    icache #(
+        .XLEN(XLEN)
+    ) icache_inst (
+        .clk       (core_clk),
+        .core_en   (core_en),
+        .rst_n     (core_rst_n),
+        .cpu_valid (imem_req),
+        .cpu_addr  (pc),
+        .cpu_rdata (instr),
+        .cpu_ready (imem_ready),
+        .mem_valid (ic_mem_valid),
+        .mem_addr  (ic_mem_addr),
+        .mem_rdata (ic_mem_rdata),
+        .mem_ready (ic_mem_ready),
+        .hit_count (ic_hits),
+        .miss_count(ic_misses)
+    );
+
+    dcache #(
+        .XLEN(XLEN)
+    ) dcache_inst (
+        .clk       (core_clk),
+        .core_en   (core_en),
+        .rst_n     (core_rst_n),
+        .cpu_valid (dmem_req && !periph_sel),
+        .cpu_rw    (|store_wstrb),
+        .cpu_addr  (mem_addr),
+        .cpu_wdata (store_data),
+        .cpu_wstrb (store_wstrb),
+        .cpu_rdata (dc_rdata),
+        .cpu_ready (dc_ready),
+        .mem_valid (dc_mem_valid),
+        .mem_rw    (dc_mem_rw),
+        .mem_addr  (dc_mem_addr),
+        .mem_wdata (dc_mem_wdata),
+        .mem_rdata (dc_mem_rdata),
+        .mem_ready (dc_mem_ready),
+        .hit_count (dc_hits),
+        .miss_count(dc_misses)
+    );
+
+    // Whole line writeback
+    assign dc_mem_wstrb = 4'h0;
+  end
 
   mem_arb #(
       .XLEN          (XLEN),
@@ -403,6 +493,7 @@ module board_top
       .dc_req_rw        (dc_mem_rw),
       .dc_req_addr      (dc_mem_addr),
       .dc_req_wdata     (dc_mem_wdata),
+      .dc_req_wstrb     (dc_mem_wstrb),
       .dc_resp_rdata    (dc_mem_rdata),
       .dc_resp_ready    (dc_mem_ready),
       .boot_we          (loading && boot_we),
