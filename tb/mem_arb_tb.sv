@@ -26,6 +26,7 @@ module mem_arb_tb;
   logic                dc_req_rw;
   logic [    Xlen-1:0] dc_req_addr;
   logic [LineBits-1:0] dc_req_wdata;
+  logic [         3:0] dc_req_wstrb;
   logic [LineBits-1:0] dc_resp_rdata;
   logic                dc_resp_ready;
 
@@ -72,6 +73,7 @@ module mem_arb_tb;
       .dc_req_rw(dc_req_rw),
       .dc_req_addr(dc_req_addr),
       .dc_req_wdata(dc_req_wdata),
+      .dc_req_wstrb(dc_req_wstrb),
       .dc_resp_rdata(dc_resp_rdata),
       .dc_resp_ready(dc_resp_ready),
       .boot_we(boot_we),
@@ -297,6 +299,7 @@ module mem_arb_tb;
     dc_req_valid = 1'b1;
     dc_req_rw    = 1'b0;
     dc_req_addr  = addr;
+    dc_req_wstrb = 4'h0;
     wait_dc();
     data = dc_resp_rdata;
     dc_req_valid = 1'b0;
@@ -309,8 +312,23 @@ module mem_arb_tb;
     dc_req_rw    = 1'b1;
     dc_req_addr  = addr;
     dc_req_wdata = data;
+    dc_req_wstrb = 4'h0;
     wait_dc();
     dc_req_valid = 1'b0;
+    @(posedge clk);
+  endtask  // Automatic
+
+  task automatic dc_word_write(input logic [Xlen-1:0] addr, input logic [3:0] strb,
+                               input logic [Xlen-1:0] data);
+    #1;
+    dc_req_valid = 1'b1;
+    dc_req_rw    = 1'b1;
+    dc_req_addr  = addr;
+    dc_req_wdata = LineBits'(data);
+    dc_req_wstrb = strb;
+    wait_dc();
+    dc_req_valid = 1'b0;
+    dc_req_wstrb = 4'h0;
     @(posedge clk);
   endtask  // Automatic
 
@@ -350,6 +368,7 @@ module mem_arb_tb;
     dc_req_rw    = 1'b0;
     dc_req_addr  = '0;
     dc_req_wdata = '0;
+    dc_req_wstrb = 4'h0;
     boot_we      = 1'b0;
     boot_addr    = '0;
     boot_wdata   = '0;
@@ -399,6 +418,68 @@ module mem_arb_tb;
           {32'h1111_0003, 32'h1111_0002, 32'h1111_0001, 32'h1111_0000});
     check("concurrent reads: data response has the wrong line", dc_got,
           {32'h2222_0003, 32'h2222_0002, 32'h2222_0001, 32'h2222_0000});
+
+    // Word lane sweep
+    for (int w = 0; w < 4; w++) begin
+      logic [LineBits-1:0] base;
+      logic [LineBits-1:0] want;
+      base = {32'h8888_0003, 32'h8888_0002, 32'h8888_0001, 32'h8888_0000};
+      dc_write(32'h0000_0400, base);
+      want = base;
+      want[w*32+:32] = 32'h9999_0000 + Xlen'(w);
+      dc_word_write(32'h0000_0400 + Xlen'(w * 4), 4'hF, 32'h9999_0000 + Xlen'(w));
+      ic_read(32'h0000_0400, got);
+      check($sformatf("data cache word write hit the wrong word, word %0d", w), got, want);
+    end
+
+    // Byte strobe sweep
+    begin
+      logic [LineBits-1:0] base;
+      logic [LineBits-1:0] want;
+      logic [         3:0] strobes[4];
+      strobes[0] = 4'b0001;
+      strobes[1] = 4'b1100;
+      strobes[2] = 4'b0110;
+      strobes[3] = 4'b1111;
+      for (int s = 0; s < 4; s++) begin
+        base = {32'hABAB_0003, 32'hABAB_0002, 32'hABAB_0001, 32'hABAB_0000};
+        dc_write(32'h0000_0500, base);
+        want = base;
+        for (int b = 0; b < 4; b++) begin
+          if (strobes[s][b]) want[32+b*8+:8] = 8'h5A + 8'(b);
+        end
+        dc_word_write(32'h0000_0504, strobes[s], {8'h5D, 8'h5C, 8'h5B, 8'h5A});
+        dc_read(32'h0000_0500, got);
+        check($sformatf(
+                  "data cache word write ignored byte strobe %04b", strobes[s]), got, want);
+      end
+    end
+
+    // Word write neighbours
+    dc_write(32'h0000_0600, {32'hFEED_0003, 32'hFEED_0002, 32'hFEED_0001, 32'hFEED_0000});
+    dc_write(32'h0000_0610, {32'hF00D_0003, 32'hF00D_0002, 32'hF00D_0001, 32'hF00D_0000});
+    dc_word_write(32'h0000_0608, 4'hF, 32'h0BAD_0000);
+    ic_read(32'h0000_0610, got);
+    check("data cache word write disturbed the next line up", got,
+          {32'hF00D_0003, 32'hF00D_0002, 32'hF00D_0001, 32'hF00D_0000});
+
+    // Word write stalled
+    en_period = 3;
+    rdy_pct   = 30;
+    wdf_pct   = 30;
+    for (int i = 0; i < 8; i++) begin
+      logic [Xlen-1:0] a;
+      a = 32'h0000_0700 + Xlen'((i % 4) * 4);
+      dc_write(32'h0000_0700, '0);
+      dc_word_write(a, 4'hF, 32'hC0DE_0000 + Xlen'(i));
+      ic_read(32'h0000_0700, got);
+      check($sformatf(
+                "data cache word write lost under a stalling controller, pass %0d", i), got,
+            LineBits'(32'hC0DE_0000 + Xlen'(i)) << ((i % 4) * 32));
+    end
+    en_period = 1;
+    rdy_pct   = 100;
+    wdf_pct   = 100;
 
     // Core enable sweep
     begin
