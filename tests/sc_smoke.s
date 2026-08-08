@@ -5,7 +5,7 @@ _start:
     li   x1, 0xABCD         # value to round-trip
     li   x2, 0x400          # data address in mem
     sw   x1, 0(x2)          # word store
-    lw   x3, 0(x2)          # word load, the path under test
+    lw   x3, 0(x2)          # word load
     li   x6, 0x404
     sb   x1, 0(x6)          # byte store
     lbu  x7, 0(x6)          # byte load
