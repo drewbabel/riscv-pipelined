@@ -6,6 +6,7 @@ set part   xc7a200tsbg484-1
 set root   [file normalize [file join [file dirname [info script]] ..]]
 set outdir [file join $root vivado build nv]
 set ipdir  [file join $outdir ip]
+file delete -force $ipdir
 file mkdir $ipdir
 
 set src [file join $root rtl boards nexys_video board_top.sv]

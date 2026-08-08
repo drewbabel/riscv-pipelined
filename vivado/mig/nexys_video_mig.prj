@@ -43,7 +43,7 @@
     <VccAuxIO>1.8V</VccAuxIO>
     <PHYRatio>4:1</PHYRatio>
     <InputClkFreq>100</InputClkFreq>
-    <UIExtraClocks>1</UIExtraClocks>
+    <UIExtraClocks>0</UIExtraClocks>
     <MMCM_VCO>800</MMCM_VCO>
     <MMCMClkOut0> 4.000</MMCMClkOut0>
     <MMCMClkOut1>1</MMCMClkOut1>

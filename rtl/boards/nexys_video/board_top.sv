@@ -192,7 +192,6 @@ module board_top
       .app_zq_ack         (),
       .ui_clk             (core_clk),
       .ui_clk_sync_rst    (ui_rst),
-      .ui_addn_clk_0      (),
       .init_calib_complete(calib_done),
       .device_temp        ()
   );
