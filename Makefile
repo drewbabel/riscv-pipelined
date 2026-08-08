@@ -14,7 +14,7 @@ SHELL := /bin/bash
 
 # packages must compile before any module that imports them
 PKGS := rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv rtl/muldiv_pkg.sv rtl/bp_pkg.sv rtl/cache_pkg.sv
-RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv))
+RTL := $(PKGS) $(filter-out $(PKGS),$(wildcard rtl/*.sv)) $(wildcard rtl/boards/basys3/*.sv)
 TB  := tb/$(MOD)_tb.sv
 SIM := build/sim
 VDIR := build/vobj_$(MOD)

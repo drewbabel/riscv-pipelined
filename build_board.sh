@@ -20,9 +20,10 @@ PARTYAML="$DBROOT/xc7a35tcpg236-1/part.yaml"
 PART=xc7a35tcpg236-1
 
 PKGS="rtl/alu_pkg.sv rtl/csr_pkg.sv rtl/opcode_pkg.sv"
-REST=$(ls rtl/*.sv | grep -vE 'alu_pkg|csr_pkg|opcode_pkg|board_top')
+REST=$(ls rtl/*.sv | grep -vE 'alu_pkg|csr_pkg|opcode_pkg')
 PATCHED="build/board_top_div${CLKDIV}.sv"
-sed -E "s/parameter int ClkDiv = [0-9]+/parameter int ClkDiv = ${CLKDIV}/" rtl/board_top.sv > "$PATCHED"
+sed -E "s/parameter int ClkDiv = [0-9]+/parameter int ClkDiv = ${CLKDIV}/" \
+  rtl/boards/basys3/board_top.sv > "$PATCHED"
 
 echo "sv2v"
 sv2v $PKGS $REST "$PATCHED" > build/design.v

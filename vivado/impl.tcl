@@ -7,7 +7,7 @@ set root   [file normalize [file join [file dirname [info script]] ..]]
 set outdir [file join $root vivado build]
 file mkdir $outdir
 
-set src [file join $root rtl board_top.sv]
+set src [file join $root rtl boards basys3 board_top.sv]
 set dst [file join $outdir board_top_div${clkdiv}.sv]
 set fh [open $src r]; set txt [read $fh]; close $fh
 regsub {parameter int ClkDiv = [0-9]+} $txt "parameter int ClkDiv = $clkdiv" txt
@@ -17,7 +17,6 @@ set pkgs {}
 set rest {}
 foreach f [lsort [glob [file join $root rtl *.sv]]] {
   set b [file rootname [file tail $f]]
-  if {$b eq "board_top"} { continue }
   if {[string match *_pkg $b]} { lappend pkgs $f } else { lappend rest $f }
 }
 read_verilog -sv $pkgs
