@@ -332,6 +332,19 @@ module mem_arb_tb;
     @(posedge clk);
   endtask  // Automatic
 
+  logic [AppAddrW-1:0] last_wr_addr;
+
+  always @(posedge clk) if (cmd_accept && app_cmd == AppWrite) last_wr_addr <= app_addr;
+
+  task automatic check_addr(input string what, input logic [AppAddrW-1:0] got,
+                            input logic [AppAddrW-1:0] exp);
+    checks++;
+    if (got !== exp) begin
+      $error("t=%0t  %s: controller saw %h, expected %h", $time, what, got, exp);
+      errors++;
+    end
+  endtask  // Automatic
+
   task automatic boot_word(input logic [Xlen-1:0] addr, input logic [Xlen-1:0] data);
     #1;
     boot_we    = 1'b1;
@@ -558,6 +571,24 @@ module mem_arb_tb;
             {d[127:64], 32'h7777_0000 + Xlen'(L), d[31:0]});
     end
     rd_lat = RdLat;
+
+    // Beyond old bram
+    begin
+      logic [Xlen-1:0] highs[5];
+      highs[0] = 32'h0001_0000;
+      highs[1] = 32'h0001_0004;
+      highs[2] = 32'h0040_0000;
+      highs[3] = 32'h00FF_FFF0;
+      highs[4] = 32'h00FF_FFFC;
+      for (int h = 0; h < 5; h++) begin
+        boot_word(highs[h], 32'hB007_0000 + Xlen'(h));
+        check_addr($sformatf("boot word address truncated above the old block ram cap, %h",
+                             highs[h]), last_wr_addr, {highs[h][AppAddrW-1:4], 4'h0});
+        ic_read(highs[h], got);
+        check($sformatf("boot word write did not land at %h", highs[h]),
+              LineBits'(got[highs[h][3:2]*32+:32]), LineBits'(32'hB007_0000 + Xlen'(h)));
+      end
+    end
 
     check_int("commands left outstanding at the controller when the stimulus ended", cq_wr,
                 cq_rd);
