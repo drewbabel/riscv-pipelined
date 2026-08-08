@@ -22,30 +22,33 @@ module sc_core_top
     output logic [XLEN-1:0] mem_addr
 );
 
-  typedef enum logic {
+  typedef enum logic [1:0] {
     FETCH,
-    ACCESS
+    ACCESS,
+    STEP
   } state_t;
 
   state_t state;
 
-  logic [XLEN-1:0] instr_q;
-  logic [XLEN-1:0] instr_c;
+  logic [XLEN-1:0] instr_h;
+  logic [XLEN-1:0] rdata_h;
+  logic            irq_h;
   logic [     6:0] opcode;
   logic            is_mem;
-  logic            fetch_ok;
+  logic            instr_cap;
+  logic            data_cap;
   logic            core_step;
   logic [     3:0] core_wstrb;
 
-  // Live then held
-  assign instr_c     = (state == FETCH) ? instr : instr_q;
-  assign opcode      = instr_c[6:0];
+  // Live at capture
+  assign opcode      = instr[6:0];
   assign is_mem      = (opcode == OpcodeLoad) || (opcode == OpcodeStore);
 
-  assign fetch_ok    = (state == FETCH) && imem_ready;
+  assign instr_cap   = core_en && (state == FETCH) && imem_ready;
+  assign data_cap    = core_en && (state == ACCESS) && dmem_ready;
 
-  // Every word landed
-  assign core_step   = core_en && ((fetch_ok && !is_mem) || ((state == ACCESS) && dmem_ready));
+  // Never a capture
+  assign core_step   = core_en && (state == STEP);
 
   assign imem_req    = (state == FETCH);
   assign dmem_req    = (state == ACCESS);
@@ -56,18 +59,26 @@ module sc_core_top
 
   always_ff @(posedge clk) begin
     if (!rst_n) state <= FETCH;
-    else if (core_en) begin
-      case (state)
-        FETCH:   if (imem_ready && is_mem) state <= ACCESS;
-        ACCESS:  if (dmem_ready) state <= FETCH;
-        default: ;
-      endcase
+    else if (instr_cap && is_mem) state <= ACCESS;
+    else if (instr_cap) state <= STEP;
+    else if (data_cap) state <= STEP;
+    else if (core_step) state <= FETCH;
+  end
+
+  // Gated cone sources
+  always_ff @(posedge clk) begin
+    if (!rst_n) begin
+      instr_h <= '0;
+      irq_h   <= 1'b0;
+    end else if (instr_cap) begin
+      instr_h <= instr;
+      irq_h   <= timer_irq;
     end
   end
 
   always_ff @(posedge clk) begin
-    if (!rst_n) instr_q <= '0;
-    else if (core_en && fetch_ok && is_mem) instr_q <= instr;
+    if (!rst_n) rdata_h <= '0;
+    else if (data_cap) rdata_h <= read_data;
   end
 
   riscv_single #(
@@ -77,9 +88,9 @@ module sc_core_top
       .core_en    (core_step),
       .cycle_en   (core_en),
       .rst_n      (rst_n),
-      .instr      (instr_c),
-      .read_data  (read_data),
-      .timer_irq  (timer_irq),
+      .instr      (instr_h),
+      .read_data  (rdata_h),
+      .timer_irq  (irq_h),
       .pc         (pc),
       .mem_write  (mem_write),
       .alu_result (alu_result),
