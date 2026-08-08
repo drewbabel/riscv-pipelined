@@ -20,17 +20,17 @@ A five-stage pipelined RV32IM processor in SystemVerilog that runs CoreMark on a
 
 Compiled at `-O2` and measured on hardware at each configuration's highest clock that completes a run with validated CRCs. Scores are computed from the `mcycle` tick count, which keeps a build's clock constant out of the result.
 
-| Configuration | Core clock | Main memory | CoreMark/sec | CoreMark/MHz |
-|---|---|---|---|---|
-| Pipelined RV32IM, gshare, caches | 50.0 MHz | 512 MB DDR3-800 behind both caches | 76.70 | 1.53 |
-| [Pipelined RV32IM, gshare branch predictor](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.1-gshare) | 33.3 MHz | single-cycle, uncached | 99.37 | 2.98 |
-| [Pipelined RV32IM, hardware multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | single-cycle, uncached | 83.36 | 2.50 |
-| [Pipelined RV32I, software multiply and divide](https://github.com/drewbabel/riscv-pipelined/releases/tag/v2.0-rv32im) | 33.3 MHz | single-cycle, uncached | 32.09 | 0.96 |
-| [Single-cycle RV32I baseline](https://github.com/drewbabel/riscv-single-cycle) | 25.0 MHz | single-cycle, uncached | 34.82 | 1.39 |
+| Configuration | Core clock | CoreMark/sec | CoreMark/MHz |
+|---|---|---|---|
+| Pipelined RV32I, soft multiply and divide, uncached | 50.0 MHz | 3.28 | 0.07 |
+| [Single-cycle RV32I, uncached](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 3.98 | 0.20 |
+| Pipelined RV32IM, uncached, no branch predictor | 50.0 MHz | 7.35 | 0.15 |
+| Pipelined RV32IM, gshare, uncached | 50.0 MHz | 7.91 | 0.16 |
+| Pipelined RV32IM, gshare, caches | 50.0 MHz | 76.69 | 1.53 |
 
-The uncached configurations take `instr` and `read_data` as plain inputs with no ready handshake, so they cannot wait on a slower memory and a single-cycle model is the only one they can be attached to. That makes their CoreMark/MHz incomparable to the top row, which pays for the cache hit path, a cycle in `IDLE` before `COMPARE` on every access, costing 1.94x the cycles per iteration the uncached gshare configuration needs at a matched 33.3 MHz clock.
+Every row runs against the same 512 MB of DDR3-800 behind `mem_arb`, which makes the cached score a controlled 9.7x over the uncached one at a matched clock and ISA. An uncached access is a full DDR3 transaction through `mem_word_if`, a drop-in stand-in for both caches that never reuses a line. The pipelined core fetches speculatively and flushes those fetches on a mispredicted branch, and every discarded fetch spends a whole memory round trip. That cost is why the uncached pipelined RV32I configuration scores below the single-cycle baseline per MHz, and caches are what make pipelining pay. The single-cycle core clocks at 20.0 MHz because one instruction is one combinational path from fetch through writeback, and its RTL is the `riscv-single-cycle` repo's core imported behind the same memory system.
 
-Each clock is a ceiling. The cached configuration produces no valid run at divide-by-1, the uncached pipelined ones fail at divide-by-2, and the single-cycle baseline fails at divide-by-3.
+`mem_word_if` registers the fetched word and the load data as each DDR3 transaction returns, and the core's clock enable stays low until both registers hold valid data. The core steps one instruction at a time across memory latency.
 
 ### Embench
 
@@ -60,9 +60,9 @@ All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`. The pipelined core r
 
 ### Memory hierarchy
 
-Main memory is 512 MB of DDR3-800 behind a Xilinx MIG controller, with `mem_arb` serialising both caches and the bootloader onto its native application interface. A CoreMark iteration issues 437,207 accesses, 361,447 of them instruction fetches, and misses 189 times. The instruction cache hits 99.95% of the time, the data cache 99.9997%.
+Main memory is 512 MB of DDR3-800 behind a Xilinx MIG controller, with `mem_arb` serialising both caches and the bootloader onto its native application interface. A CoreMark iteration issues 437,221 accesses, 361,461 of them instruction fetches, and misses 189 times. The instruction cache hits 99.95% of the time, the data cache 99.9997%.
 
-Each miss costs 10.2 cycles against the same design on a single-cycle memory. A controller read takes ~20 cycles of the 100 MHz user clock and the core advances once every 2, so a line fill reaches the core as ~10. An uncached design would pay that on every access, ~5,110,000 cycles per iteration against the measured 651,929.
+A controller read takes ~20 cycles of the 100 MHz user clock and the core advances once every 2, which puts a line fill at ~10 core cycles.
 
 ## Verification
 
@@ -86,28 +86,28 @@ Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7
 | `gpio` | 4 | 0 | 8 | 0 | 0 |
 | `tick_gen` | 8 | 0 | 1 | 0 | 0 |
 | `mem_arb` | 19 | 0 | 452 | 0 | 0 |
-| `gshare` | 22 | 64 | 10 | 0 | 0 |
+| `gshare` | 20 | 64 | 10 | 0 | 0 |
 | `uart_rx` | 28 | 0 | 30 | 0 | 0 |
 | `uart_tx` | 30 | 0 | 27 | 0 | 0 |
 | `pmu` | 32 | 0 | 0 | 0 | 0 |
 | `boot_loader` | 40 | 0 | 93 | 0 | 0 |
 | `clint` | 64 | 0 | 128 | 0 | 0 |
 | `btb` | 100 | 76 | 64 | 0 | 0 |
-| `icache` | 176 | 0 | 255 | 19 | 0 |
+| `icache` | 178 | 0 | 255 | 19 | 0 |
 | `csr` | 225 | 0 | 382 | 0 | 0 |
 | `regfile` | 645 | 0 | 992 | 0 | 0 |
-| `muldiv` | 1854 | 0 | 239 | 0 | 15 |
-| `dcache` | 2020 | 1792 | 1156 | 0 | 0 |
-| `riscv_pipelined` | 3244 | 140 | 2366 | 0 | 15 |
-| `board_top` (total) | 9873 | 2382 | 8557 | 19 | 15 |
+| `muldiv` | 1856 | 0 | 239 | 0 | 15 |
+| `dcache` | 2019 | 1792 | 1156 | 0 | 0 |
+| `riscv_pipelined` | 3245 | 140 | 2366 | 0 | 15 |
+| `board_top` (total) | 9875 | 2382 | 8557 | 19 | 15 |
 
-The total also carries the Xilinx MIG controller, 4204 logic LUTs and 4026 flip-flops of generated IP. A single `PLLE2_BASE` feeds it a 100 MHz system clock and a 200 MHz reference clock from the board oscillator, and everything above its application interface runs from its 100 MHz user clock.
+The total also carries the Xilinx MIG controller, 4207 logic LUTs and 4026 flip-flops of generated IP. A single `PLLE2_BASE` feeds it a 100 MHz system clock and a 200 MHz reference clock from the board oscillator, and everything above its application interface runs from its 100 MHz user clock.
 
 ### Timing
 
-The 100 MHz clock comes from the memory controller and the core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 routes `board_top` at a divide-by-2 enable with no failed nets, meeting every constraint with 0.678 ns of worst setup slack and 0.012 ns of worst hold slack.
+The 100 MHz clock comes from the memory controller and the core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 routes `board_top` at a divide-by-2 enable with no failed nets, meeting every constraint with 0.630 ns of worst setup slack and 0.049 ns of worst hold slack.
 
-Paths between enable-gated registers carry a multicycle exception matching the enable cadence and close with 0.966 ns to spare. It covers only those registers, excluding the controller, `mem_arb`, and the enable generator, which advance every cycle. Worst slack lands on the enable distribution network, single-cycle by construction and the one path class the exception cannot cover. Running `vivado/impl_nexys_video.tcl 2` reproduces these figures.
+Paths between enable-gated registers carry a multicycle exception matching the enable cadence, and the worst setup path in the routed design is one of those paths. The exception covers only those registers, excluding the controller, `mem_arb`, and the enable generator, which advance every cycle. Running `vivado/impl_nexys_video.tcl 2` reproduces these figures.
 
 ## Building and running
 
