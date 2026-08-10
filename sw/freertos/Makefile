@@ -15,8 +15,7 @@ CSRC := main.c libc.c \
         $(KDIR)/portable/MemMang/heap_4.c
 ASRC := start.S $(PORT)/portASM.S
 
-# The port's tick increment is a build-time constant, rename it out of the way
-# so main.c can define the real one from the core clock register.
+# Rename port constant
 PORTDEF := -DuxTimerIncrementsForOneTick=uxPortBuildTickIncrement
 
 LIBGCC := $(shell $(CC) $(CFLAGS) -print-libgcc-file-name)

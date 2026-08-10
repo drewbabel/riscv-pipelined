@@ -10,14 +10,13 @@
 #define UART_ST (*(volatile unsigned int *) 0x04000004)
 #define CORE_CLK_HZ (*(volatile unsigned int *) 0x05000010)
 
-/* Read by the port's timer interrupt, the kernel's build-time copy is renamed
-   away in the Makefile so this runtime value is the one that counts. */
+/* Replaces kernel copy */
 size_t uxTimerIncrementsForOneTick = 0;
 
 extern uint64_t ullNextTime;
 extern volatile uint64_t *pullMachineTimerCompareRegister;
 
-/* Overrides the port's weak version */
+/* Overrides weak version */
 void vPortSetupTimerInterrupt(void) {
   volatile uint32_t *const time_hi = (volatile uint32_t *) (configMTIME_BASE_ADDRESS + 4UL);
   volatile uint32_t *const time_lo = (volatile uint32_t *) configMTIME_BASE_ADDRESS;
