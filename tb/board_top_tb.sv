@@ -42,7 +42,7 @@ module board_top_tb ();
     repeat (2) @(posedge clk);
     rst = 0;
     repeat (200) @(posedge clk);
-  endtask  // Automatic
+  endtask
 
   task automatic send_byte(input logic [7:0] b);
     uart_rx = 1'b0;
@@ -53,20 +53,19 @@ module board_top_tb ();
     end
     uart_rx = 1'b1;
     repeat (ClksPerBit) @(posedge clk);
-  endtask  // Automatic
+  endtask
 
   task automatic send_word(input logic [31:0] w);
     for (int j = 0; j < 32; j += 8) send_byte(w[j+:8]);
-  endtask  // Automatic
+  endtask
 
-  // Settles or times out
   task automatic wait_led(input logic [15:0] exp, input int cycles);
     int i = 0;
     while (led !== exp && i < cycles) begin
       @(posedge clk);
       i++;
     end
-  endtask  // Automatic
+  endtask
 
   task automatic check(input string name, input logic [15:0] got, input logic [15:0] exp);
     checks++;
@@ -74,13 +73,13 @@ module board_top_tb ();
       $error("%s got %04x exp %04x", name, got, exp);
       errors++;
     end
-  endtask  // Automatic
+  endtask
 
   task automatic verdict();
     if (errors == 0) $display("PASS: %0d checks, %0d mismatches", checks, errors);
     else $fatal(1, "FAIL: %0d mismatches, %0d checks", errors, checks);
     $finish;
-  endtask  // Automatic
+  endtask
 
   // Word round trip
   initial begin

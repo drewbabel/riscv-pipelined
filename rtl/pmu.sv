@@ -11,7 +11,6 @@ module pmu #(
     input logic [XLEN-1:0] dc_misses
 );
 
-  // Core clock constant
   localparam logic [XLEN-1:0] ClkHz = CLK_FREQ_HZ;
 
   always_comb begin
