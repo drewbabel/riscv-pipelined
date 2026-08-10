@@ -1,5 +1,3 @@
-include ../../config.mk
-
 SRC     := ../coremark-src
 CC      := riscv64-elf-gcc
 OBJCOPY := riscv64-elf-objcopy
@@ -9,7 +7,7 @@ ARCH        ?= rv32i_zicsr
 
 INCS := -I. -I$(SRC)
 DEFS := -DHAS_FLOAT=1 -DHAS_TIME_H=0 -DUSE_CLOCK=0 -DHAS_STDIO=0 -DHAS_PRINTF=0 \
-        -DMEM_METHOD=MEM_STATIC -DMAIN_HAS_NOARGC=1 -DCORE_CLK_HZ=$(CORE_CLK_HZ) \
+        -DMEM_METHOD=MEM_STATIC -DMAIN_HAS_NOARGC=1 \
         -DFLAGS_STR='"-O2 -march=$(ARCH)"'
 CFLAGS  := -march=$(ARCH) -mabi=ilp32 -O2 -ffreestanding -Wall $(INCS) $(DEFS)
 LDFLAGS := -march=$(ARCH) -mabi=ilp32 -nostdlib -nostartfiles -T link.ld
