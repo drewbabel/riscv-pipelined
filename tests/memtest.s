@@ -8,5 +8,8 @@ _start:
     lw   x3, 0(x2)          # load it back, the path under test
     li   x4, 0x03000000     # LED MMIO
     sw   x3, 0(x4)          # LED = loaded value
+    li   x5, 0x05000010     # core clock MMIO
+    lw   x6, 0(x5)          # read the core clock
+    sw   x6, 0(x4)          # LED = clock low half
 loop:
     j    loop

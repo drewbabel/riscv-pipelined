@@ -18,7 +18,8 @@ module board_top_tb ();
   // Bit period
   localparam int ClksPerBit = (FastClkHz + BaudRate / 2) / BaudRate;
 
-  logic [31:0] prog[9];
+  localparam int NWords = 12;
+  logic [31:0] prog[NWords];
 
   always #5 clk = ~clk;
 
@@ -58,6 +59,15 @@ module board_top_tb ();
     for (int j = 0; j < 32; j += 8) send_byte(w[j+:8]);
   endtask  // Automatic
 
+  // Settles or times out
+  task automatic wait_led(input logic [15:0] exp, input int cycles);
+    int i = 0;
+    while (led !== exp && i < cycles) begin
+      @(posedge clk);
+      i++;
+    end
+  endtask  // Automatic
+
   task automatic check(input string name, input logic [15:0] got, input logic [15:0] exp);
     checks++;
     if (got !== exp) begin
@@ -81,12 +91,14 @@ module board_top_tb ();
       $fatal(1, "memtest.hex missing or empty, run make hex PROG=memtest");
     do_reset();
 
-    send_word(32'd9);
+    send_word(NWords);
     foreach (prog[i]) send_word(prog[i]);
 
     wait (dut.loading == 1'b0);
-    repeat (60_000) @(posedge clk);
+    wait_led(16'hABCD, 60_000);
     check("led", led, 16'hABCD);
+    wait_led(CoreClkHz[15:0], 60_000);
+    check("core_clk_hz", led, CoreClkHz[15:0]);
     verdict();
   end
 
