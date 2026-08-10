@@ -20,7 +20,11 @@ volatile ee_s32 seed3_volatile = 0x8;
 volatile ee_s32 seed4_volatile = ITERATIONS;
 volatile ee_s32 seed5_volatile = 0;
 
-#define EE_TICKS_PER_SEC CORE_CLK_HZ
+#define PMU_BASE ((volatile unsigned int *)0x05000000)
+#define PMU_CLK_HZ 4
+
+/* Read at startup */
+static ee_u32 core_clk_hz = 1;
 
 static ee_u32
 read_mcycle(void)
@@ -53,7 +57,7 @@ get_time(void)
 secs_ret
 time_in_secs(CORE_TICKS ticks)
 {
-    return ((secs_ret)ticks) / (secs_ret)EE_TICKS_PER_SEC;
+    return ((secs_ret)ticks) / (secs_ret)core_clk_hz;
 }
 
 ee_u32 default_num_contexts = 1;
@@ -63,6 +67,7 @@ portable_init(core_portable *p, int *argc, char *argv[])
 {
     (void)argc;
     (void)argv;
+    core_clk_hz = PMU_BASE[PMU_CLK_HZ];
     if (sizeof(ee_ptr_int) != sizeof(ee_u8 *))
         ee_printf("ERROR! ee_ptr_int must hold a pointer!\n");
     if (sizeof(ee_u32) != 4)
@@ -73,7 +78,7 @@ portable_init(core_portable *p, int *argc, char *argv[])
 void
 portable_fini(core_portable *p)
 {
-    volatile unsigned int *pmu = (unsigned int *)0x05000000;
+    volatile unsigned int *pmu = PMU_BASE;
     unsigned int ih = pmu[0], im = pmu[1], dh = pmu[2], dm = pmu[3];
 
     ee_printf("icache hits %u misses %u\n", ih, im);

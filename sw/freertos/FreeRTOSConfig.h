@@ -1,10 +1,11 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+/* The core clock is read from MMIO at boot, main.c owns the tick increment
+   and this constant only feeds a kernel definition that goes unused. */
+#define configCPU_CLOCK_HZ                      0
+
 /* SiFive CLINT layout */
-#ifndef configCPU_CLOCK_HZ
-#define configCPU_CLOCK_HZ                      50000000
-#endif
 #define configMTIME_BASE_ADDRESS                0x0200BFF8
 #define configMTIMECMP_BASE_ADDRESS             0x02004000
 

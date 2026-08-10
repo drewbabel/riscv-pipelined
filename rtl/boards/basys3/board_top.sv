@@ -1,9 +1,10 @@
 module board_top
   import cache_pkg::*;
 #(
-    parameter int XLEN   = 32,
-    parameter int DEPTH  = 16384,
+    parameter int XLEN = 32,
+    parameter int DEPTH = 16384,
     parameter int ClkDiv = 2,
+    parameter int BoardClkHz = 100_000_000,
     parameter int MemLatency = 20
 ) (
     input  logic        clk,
@@ -76,7 +77,7 @@ module board_top
   logic [31:0] dc_hits;
   logic [31:0] dc_misses;
 
-  localparam int CoreClkHz = 100_000_000 / ClkDiv;
+  localparam int CoreClkHz = BoardClkHz / ClkDiv;
   logic core_en;
 
   tick_gen #(
@@ -118,7 +119,8 @@ module board_top
   assign led = loading ? 16'h5555 : led_raw;
 
   pmu #(
-      .XLEN(XLEN)
+      .XLEN(XLEN),
+      .CLK_FREQ_HZ(CoreClkHz)
   ) pmu_inst (
       .addr     (mem_addr),
       .rdata    (pmu_rdata),

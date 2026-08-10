@@ -1,11 +1,12 @@
 module board_top
   import cache_pkg::*;
 #(
-    parameter int XLEN      = 32,
-    parameter int DEPTH     = 4194304,
-    parameter int ClkDiv    = 2,
-    parameter bit UNCACHED  = 1'b0,
-    parameter bit GSHARE_EN = 1'b1,
+    parameter int XLEN         = 32,
+    parameter int DEPTH        = 4194304,
+    parameter int ClkDiv       = 2,
+    parameter int BoardClkHz   = 100_000_000,
+    parameter bit UNCACHED     = 1'b0,
+    parameter bit GSHARE_EN    = 1'b1,
     parameter bit SINGLE_CYCLE = 1'b0
 ) (
     input  logic        clk,
@@ -123,7 +124,7 @@ module board_top
   logic [    LineBits-1:0] app_rd_data;
   logic                    app_rd_data_valid;
 
-  localparam int CoreClkHz = 100_000_000 / ClkDiv;
+  localparam int CoreClkHz = BoardClkHz / ClkDiv;
   logic core_en;
 
   PLLE2_BASE #(
@@ -242,7 +243,8 @@ module board_top
   assign led = loading ? 8'h55 : led_raw;
 
   pmu #(
-      .XLEN(XLEN)
+      .XLEN(XLEN),
+      .CLK_FREQ_HZ(CoreClkHz)
   ) pmu_inst (
       .addr     (mem_addr),
       .rdata    (pmu_rdata),

@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
@@ -6,6 +8,34 @@
 #define SW  (*(volatile unsigned int *) 0x03000004)
 #define UART_TX (*(volatile unsigned int *) 0x04000000)
 #define UART_ST (*(volatile unsigned int *) 0x04000004)
+#define CORE_CLK_HZ (*(volatile unsigned int *) 0x05000010)
+
+/* Read by the port's timer interrupt, the kernel's build-time copy is renamed
+   away in the Makefile so this runtime value is the one that counts. */
+size_t uxTimerIncrementsForOneTick = 0;
+
+extern uint64_t ullNextTime;
+extern volatile uint64_t *pullMachineTimerCompareRegister;
+
+/* Overrides the port's weak version */
+void vPortSetupTimerInterrupt(void) {
+  volatile uint32_t *const time_hi = (volatile uint32_t *) (configMTIME_BASE_ADDRESS + 4UL);
+  volatile uint32_t *const time_lo = (volatile uint32_t *) configMTIME_BASE_ADDRESS;
+  uint32_t now_hi, now_lo;
+
+  uxTimerIncrementsForOneTick = (size_t) (CORE_CLK_HZ / configTICK_RATE_HZ);
+  pullMachineTimerCompareRegister = (volatile uint64_t *) configMTIMECMP_BASE_ADDRESS;
+
+  do {
+    now_hi = *time_hi;
+    now_lo = *time_lo;
+  } while (now_hi != *time_hi);
+
+  ullNextTime = ((uint64_t) now_hi << 32) | (uint64_t) now_lo;
+  ullNextTime += (uint64_t) uxTimerIncrementsForOneTick;
+  *pullMachineTimerCompareRegister = ullNextTime;
+  ullNextTime += (uint64_t) uxTimerIncrementsForOneTick;
+}
 
 static void uart_putc(char c) {
   while (!(UART_ST & 1)) {

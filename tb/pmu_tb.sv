@@ -4,6 +4,7 @@ module pmu_tb;
   int errors = 0;
 
   localparam int Xlen = 32;
+  localparam int ClkFreqHz = 3_125_000;
 
   logic [Xlen-1:0] addr;
   logic [Xlen-1:0] rdata;
@@ -13,7 +14,8 @@ module pmu_tb;
   logic [Xlen-1:0] dc_misses;
 
   pmu #(
-      .XLEN(Xlen)
+      .XLEN(Xlen),
+      .CLK_FREQ_HZ(ClkFreqHz)
   ) dut (
       .addr     (addr),
       .rdata    (rdata),
@@ -52,7 +54,11 @@ module pmu_tb;
     read_check("dc_hits", 32'h0500_0008, 32'h3333_3333);
     read_check("dc_misses", 32'h0500_000C, 32'h4444_4444);
 
+    read_check("clk_hz", 32'h0500_0010, ClkFreqHz);
+    read_check("reserved_reads_zero", 32'h0500_0014, 32'h0);
+
     read_check("byte_offset_ignored", 32'h0500_0001, 32'h1111_1111);
+    read_check("clk_hz_byte_offset", 32'h0500_0012, ClkFreqHz);
     read_check("upper_addr_ignored", 32'h0500_0104, 32'h2222_2222);
 
     ic_hits   = 32'hAAAA_AAAA;
