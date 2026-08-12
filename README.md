@@ -8,7 +8,7 @@ A five-stage pipelined RV32IM processor in SystemVerilog, running CoreMark on a 
 - A gshare predictor and branch target buffer redirecting fetch ahead of resolution in EX.
 - Multiply on a DSP block and divide on an iterative shift-subtract unit.
 - A direct-mapped instruction cache and a 4-way set-associative write-back data cache with tree pseudo-LRU replacement, both built on 4-word lines.
-- An arbiter serialising both caches and the bootloader onto the DDR3 controller, proved to allow a single outstanding transaction at most and to complete every accepted request.
+- An arbiter serializing both caches and the bootloader onto the DDR3 controller, proved to allow a single outstanding transaction at most and to complete every accepted request.
 - Machine mode covering traps, `mtvec` dispatch, the CLINT timer interrupt, an external interrupt line from the UART receiver, and the Zicsr instructions.
 - A UART bootloader streaming programs into main memory, alongside memory-mapped peripherals.
 
@@ -28,7 +28,7 @@ Compiled at `-O2` and measured on hardware at each configuration's highest CRC-v
 | Pipelined RV32I, soft multiply and divide, uncached | 50.0 MHz | 3.28 | 0.07 |
 | [Single-cycle RV32I, uncached](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 3.98 | 0.20 |
 
-Every row shares a single 512 MB DDR3-800 main memory behind `mem_arb`. At a matched clock and ISA, the 2 caches deliver a controlled 9.7x CoreMark speedup. An uncached access is a full DDR3 transaction through `mem_word_if`, a direct replacement for both caches with no line reuse. Each speculative fetch flushed on a mispredicted branch adds a wasted round trip. As a result, the uncached pipelined RV32I configuration scores below the single-cycle baseline per MHz. The single-cycle core, imported from the `riscv-single-cycle` repo using the same memory system, clocks at 20.0 MHz because each instruction completes in a single combinational path from fetch through writeback.
+Every row shares a single 512 MB DDR3-800 main memory behind `mem_arb`. At a matched clock and ISA, the 2 caches deliver a 9.7x CoreMark speedup. An uncached access is a full DDR3 transaction through `mem_word_if`, a direct replacement for both caches with no line reuse. Each speculative fetch flushed on a mispredicted branch adds a wasted round trip. As a result, the uncached pipelined RV32I configuration scores below the single-cycle baseline per MHz. The single-cycle core, imported from the `riscv-single-cycle` repo using the same memory system, clocks at 20.0 MHz because each instruction completes in a single combinational path from fetch through writeback.
 
 ### Embench
 
@@ -58,7 +58,7 @@ All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`, measured on hardware
 
 ### Memory hierarchy
 
-Main memory sits behind a Xilinx MIG controller, with `mem_arb` serialising both caches and the bootloader onto the controller's native application interface. A CoreMark iteration issues 437,221 memory accesses, 361,461 of them instruction fetches, and misses 189 times. The instruction cache serves 99.95% of fetches and the data cache 99.9997% of data accesses. Each miss costs ~10 core cycles over an ideal single-cycle memory, measured at a divide-by-2 enable.
+Main memory sits behind a Xilinx MIG controller, with `mem_arb` serializing both caches and the bootloader onto the controller's native application interface. A CoreMark iteration issues 437,221 memory accesses, 361,461 of them instruction fetches, and 189 of them miss. The instruction cache serves 99.95% of fetches and the data cache 99.9997% of data accesses. Each miss costs ~10 core cycles over an ideal single-cycle memory, measured at a divide-by-2 enable.
 
 ## Verification
 
@@ -101,7 +101,7 @@ The total also includes the Xilinx MIG controller, 4207 logic LUTs and 4026 flip
 
 ### Timing
 
-The core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 routes `board_top` at a divide-by-2 enable with no failed nets, meeting every constraint with 0.630 ns of worst setup slack and 0.049 ns of worst hold slack. A multicycle exception matching the enable cadence covers paths between enable-gated registers, and the worst setup path in the routed design falls under the exception. The controller, `mem_arb`, and the enable generator advance every cycle and stay outside the exception.
+The core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 routes `board_top` at a divide-by-2 enable, meeting every constraint with 0.630 ns of worst setup slack and 0.049 ns of worst hold slack. A multicycle exception matching the enable cadence covers paths between enable-gated registers, and the worst setup path in the routed design falls under the exception. The controller, `mem_arb`, and the enable generator advance every cycle and stay outside the exception.
 
 ## Building and running
 
@@ -119,7 +119,7 @@ vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs 2   # build the 
 openFPGALoader -b nexysVideo vivado/build/nv/board_top.bit          # flash the bitstream
 ```
 
-The build needs Vivado for the DDR3 controller. Only the controller's project file is checked in, since generated output embeds absolute paths from the generating machine.
+The build needs Vivado for the DDR3 controller, which the build script regenerates from `vivado/mig/nexys_video_mig.prj`.
 
 ### Tool versions
 
