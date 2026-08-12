@@ -2,15 +2,15 @@
 
 [![CI](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml/badge.svg)](https://github.com/drewbabel/riscv-pipelined/actions/workflows/ci.yml)
 
-A five-stage pipelined RV32IM processor in SystemVerilog, running CoreMark on a Digilent Nexys Video, with:
+A 5-stage pipelined RV32IM processor in SystemVerilog, running CoreMark on a Digilent Nexys Video, with:
 
 - Operands forwarded from MEM and WB, with a 1-cycle interlock on the load-use hazard.
 - A gshare predictor and branch target buffer redirecting fetch ahead of resolution in EX.
 - Multiply on a DSP block and divide on an iterative shift-subtract unit.
 - A direct-mapped instruction cache and a 4-way set-associative write-back data cache with tree pseudo-LRU replacement, both built on 4-word lines.
-- An arbiter serialising both caches and the bootloader onto the DDR3 controller, proved to allow a single outstanding transaction at most and to complete every accepted request.
+- An arbiter serializing both caches and the bootloader onto the DDR3 controller, proved to allow at most one outstanding transaction and to complete every accepted request.
 - Machine mode covering traps, `mtvec` dispatch, the CLINT timer interrupt, an external interrupt line from the UART receiver, and the Zicsr instructions.
-- A UART bootloader streaming programs into main memory, alongside memory-mapped peripherals.
+- A UART bootloader streaming programs into main memory, and memory-mapped peripherals for the UART, GPIO, and cache counters.
 
 ![Pipelined core block diagram](docs/pipeline_block.svg)
 
@@ -18,7 +18,7 @@ A five-stage pipelined RV32IM processor in SystemVerilog, running CoreMark on a 
 
 ### CoreMark
 
-Compiled at `-O2` and measured on hardware at each configuration's highest CRC-validated clock. Scores derive from the `mcycle` count.
+Compiled at `-O2` and measured on hardware at each configuration's highest CRC-validated clock, with scores from the `mcycle` count.
 
 | Configuration | Core clock | CoreMark/sec | CoreMark/MHz |
 |---|---|---|---|
@@ -28,11 +28,11 @@ Compiled at `-O2` and measured on hardware at each configuration's highest CRC-v
 | Pipelined RV32I, soft multiply and divide, uncached | 50.0 MHz | 3.28 | 0.07 |
 | [Single-cycle RV32I, uncached](https://github.com/drewbabel/riscv-single-cycle) | 20.0 MHz | 3.98 | 0.20 |
 
-Every row shares a single 512 MB DDR3-800 main memory behind `mem_arb`. At a matched clock and ISA, the 2 caches deliver a controlled 9.7x CoreMark speedup. An uncached access is a full DDR3 transaction through `mem_word_if`, a direct replacement for both caches with no line reuse. Each speculative fetch flushed on a mispredicted branch adds a wasted round trip. As a result, the uncached pipelined RV32I configuration scores below the single-cycle baseline per MHz. The single-cycle core, imported from the `riscv-single-cycle` repo using the same memory system, clocks at 20.0 MHz because each instruction completes in a single combinational path from fetch through writeback.
+Every row shares the same 512 MB DDR3-800 main memory behind `mem_arb`. The cached and uncached RV32IM rows isolate the 2 caches, a 9.7x CoreMark speedup. The uncached rows replace both caches with `mem_word_if`, making every access a full DDR3 transaction with no line reuse. Each speculative fetch flushed on a mispredicted branch adds a wasted round trip. As a result, the uncached pipelined RV32I configuration scores below the single-cycle baseline. The single-cycle core, imported from the `riscv-single-cycle` repo and run on the same memory system, clocks at 20.0 MHz because each instruction completes in one combinational path from fetch through writeback.
 
 ### Embench
 
-All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`, measured on hardware as `mcycle` deltas.
+All 19 benchmarks run at `-O2` with `GLOBAL_SCALE_FACTOR=1` and are measured on hardware as `mcycle` deltas.
 
 | Benchmark | Cached gshare RV32IM | Uncached gshare RV32IM | Uncached no-gshare RV32IM | Uncached RV32I soft multiply and divide | Single-cycle RV32I |
 |---|---|---|---|---|---|
@@ -58,7 +58,7 @@ All 19 benchmarks run at `-O2` and `GLOBAL_SCALE_FACTOR=1`, measured on hardware
 
 ### Memory hierarchy
 
-Main memory sits behind a Xilinx MIG controller, with `mem_arb` serialising both caches and the bootloader onto the controller's native application interface. A CoreMark iteration issues 437,221 memory accesses, 361,461 of them instruction fetches, and misses 189 times. The instruction cache serves 99.95% of fetches and the data cache 99.9997% of data accesses. Each miss costs ~10 core cycles over an ideal single-cycle memory, measured at a divide-by-2 enable.
+Main memory sits behind a Xilinx MIG controller, with `mem_arb` serializing both caches and the bootloader onto the controller's native application interface. Of the 437,221 memory accesses in a CoreMark iteration, 361,461 are instruction fetches and 189 miss. The instruction cache serves 99.95% of fetches and the data cache 99.9997% of loads and stores. At the divide-by-2 enable, each miss adds ~10 core cycles over an ideal single-cycle memory.
 
 ## Verification
 
@@ -70,11 +70,11 @@ Main memory sits behind a Xilinx MIG controller, with `mem_arb` serialising both
 | Reference-model testbenches | Every module, plus directed pipeline programs and FreeRTOS and CoreMark boots |
 | FPGA | Full system integration on hardware, CoreMark CRCs against DDR3 + all 19 Embench cycle counts + a FreeRTOS boot |
 
-A 32-bit multiplier is beyond in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. `muldiv` proves its own products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, and `formal/irq.sby` proves the trap logic separately: an interrupt is taken only when pending and enabled, a simultaneous exception takes precedence, a simultaneous external and timer interrupt resolves to the external line, and `mret` restores `MIE` from `MPIE`. FreeRTOS boots from DDR3 on the board, with the scheduler, timer interrupt, and task switching live.
+A 32-bit multiplier is too large for in-core bounded model checking, and `insn_mul` is excluded from riscv-formal. A separate SymbiYosys task proves `muldiv`'s products for every operand pair. The riscv-formal wrapper ties both interrupt lines low, leaving the trap logic to `formal/irq.sby`. An interrupt is taken only when pending and enabled, and a simultaneous exception takes precedence. An external and a timer interrupt arriving together resolve to the external line, and `mret` restores `MIE` from `MPIE`. FreeRTOS boots from DDR3 on the board, with the scheduler, timer interrupt, and task switching live.
 
 ## Implementation
 
-Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7 XC7A200T, reproducible with `vivado/impl_nexys_video.tcl`. `alu` and `hazard_unit` merge into the datapath during optimization and carry no standalone row.
+Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7 XC7A200T, reproducible with `vivado/impl_nexys_video.tcl`. `alu` and `hazard_unit` merge into the datapath during optimization and have no row of their own.
 
 | Instance | Logic LUTs | LUTRAM | Flip-flops | Block RAMs (18 Kb each) | DSPs |
 |----------|------------|--------|------------|-------------------------|------|
@@ -97,11 +97,11 @@ Post-route utilization per instance from AMD Vivado 2026.1 on the Xilinx Artix-7
 | `riscv_pipelined` | 3245 | 140 | 2366 | 0 | 15 |
 | `board_top` (total) | 9875 | 2382 | 8557 | 19 | 15 |
 
-The total also includes the Xilinx MIG controller, 4207 logic LUTs and 4026 flip-flops of generated IP. A single `PLLE2_BASE` feeds the controller a 100 MHz system clock and a 200 MHz reference clock from the board oscillator, and the rest of the design runs from the controller's 100 MHz user clock.
+The total also includes the Xilinx MIG controller, which adds 4207 logic LUTs and 4026 flip-flops of generated IP. A single `PLLE2_BASE` feeds the controller a 100 MHz system clock and a 200 MHz reference clock from the board oscillator, and the rest of the design runs from the controller's 100 MHz user clock.
 
 ### Timing
 
-The core advances on a clock enable whose divisor sets the instruction rate. AMD Vivado 2026.1 routes `board_top` at a divide-by-2 enable with no failed nets, meeting every constraint with 0.630 ns of worst setup slack and 0.049 ns of worst hold slack. A multicycle exception matching the enable cadence covers paths between enable-gated registers, and the worst setup path in the routed design falls under the exception. The controller, `mem_arb`, and the enable generator advance every cycle and stay outside the exception.
+A clock enable steps the core every second cycle of the 100 MHz user clock for a 50 MHz instruction rate. Multicycle constraints give the enable-gated paths the matching 2-cycle budget, while the controller, `mem_arb`, and the enable generator run every cycle and are constrained at the full clock. The routed design meets every constraint in AMD Vivado 2026.1, with 0.630 ns of worst setup slack and 0.049 ns of worst hold slack, and the worst setup path is enable-gated.
 
 ## Building and running
 
@@ -119,7 +119,7 @@ vivado -mode batch -source vivado/impl_nexys_video.tcl -tclargs 2   # build the 
 openFPGALoader -b nexysVideo vivado/build/nv/board_top.bit          # flash the bitstream
 ```
 
-The build needs Vivado for the DDR3 controller. Only the controller's project file is checked in, since generated output embeds absolute paths from the generating machine.
+The build needs Vivado for the DDR3 controller, which `vivado/impl_nexys_video.tcl` regenerates from `vivado/mig/nexys_video_mig.prj`.
 
 ### Tool versions
 
