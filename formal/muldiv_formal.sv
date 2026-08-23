@@ -49,7 +49,7 @@ module muldiv_formal
       ref_b  <= b;
     end
 
-  // Golden high and low products from the spec
+  // Golden high and low products
   logic signed [  XLEN-1:0] sa;
   logic signed [  XLEN-1:0] sb;
   logic        [2*XLEN-1:0] prod_ss;
@@ -87,7 +87,8 @@ module muldiv_formal
     if (!rst_n) f_started <= 1'b0;
     else if (start) f_started <= 1'b1;
 
-  // General divide leans on Spike, this proves multiply handshake and special cases
+  // Prove multiply handshake and special cases
+  // (General divide handled by Spike)
   always @(posedge clk)
     if (rst_n) begin
       assert (!(busy && done));
@@ -100,6 +101,16 @@ module muldiv_formal
         if ((ref_op == MD_REM) && overflow) assert (result == '0);
         if ((ref_op == MD_REMU) && (ref_b == '0)) assert (result == ref_a);
       end
+    end
+
+  always @(posedge clk)
+    if (rst_n) begin
+      cover (f_started && done);
+      cover (f_started && done && is_mul);
+      cover (f_started && done && (ref_op == MD_DIV) && (ref_b == '0));
+      cover (f_started && done && (ref_op == MD_DIV) && overflow);
+      cover (f_started && done && (ref_op == MD_REM) && (ref_b == '0));
+      cover (f_started && done && (ref_op == MD_DIV) && (ref_b != '0) && !overflow);
     end
 
 endmodule
