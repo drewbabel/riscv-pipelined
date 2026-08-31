@@ -4,25 +4,7 @@ module riscv_pipelined
     parameter int XLEN      = 32,
     parameter bit GSHARE_EN = 1'b1
 ) (
-    input  logic            clk,
-    input  logic            core_en,
-    input  logic            rst_n,
-    input  logic [XLEN-1:0] instr,
-    input  logic [XLEN-1:0] read_data,
-    input  logic            timer_irq,
-    input  logic            ext_irq,
-    input  logic            imem_ready,
-    input  logic            dmem_ready,
-    output logic            dmem_req,
-    output logic [XLEN-1:0] pc,
-    output logic            mem_write,
-    output logic [XLEN-1:0] alu_result,
-    output logic [XLEN-1:0] write_data,
-    output logic [     3:0] store_wstrb,
-    output logic [XLEN-1:0] store_data,
-    output logic [XLEN-1:0] mem_addr
 `ifdef RISCV_FORMAL
-    ,
     output logic            dbg_valid,
     output logic [XLEN-1:0] dbg_insn,
     output logic [XLEN-1:0] dbg_pc_rdata,
@@ -48,33 +30,32 @@ module riscv_pipelined
     output logic [XLEN-1:0] dbg_mcycle,
     output logic [XLEN-1:0] dbg_minstret,
     output logic [XLEN-1:0] dbg_mcycleh,
-    output logic [XLEN-1:0] dbg_minstreth
+    output logic [XLEN-1:0] dbg_minstreth,
 `endif
+    input  logic            clk,
+    input  logic            core_en,
+    input  logic            rst_n,
+    input  logic [XLEN-1:0] instr,
+    input  logic [XLEN-1:0] read_data,
+    input  logic            timer_irq,
+    input  logic            ext_irq,
+    input  logic            imem_ready,
+    input  logic            dmem_ready,
+    output logic            dmem_req,
+    output logic [XLEN-1:0] pc,
+    output logic            mem_write,
+    output logic [XLEN-1:0] alu_result,
+    output logic [XLEN-1:0] write_data,
+    output logic [     3:0] store_wstrb,
+    output logic [XLEN-1:0] store_data,
+    output logic [XLEN-1:0] mem_addr
 );
 
   datapath #(
       .XLEN     (XLEN),
       .GSHARE_EN(GSHARE_EN)
   ) datapath_inst (
-      .clk        (clk),
-      .core_en    (core_en),
-      .rst_n      (rst_n),
-      .instr      (instr),
-      .read_data  (read_data),
-      .timer_irq  (timer_irq),
-      .ext_irq    (ext_irq),
-      .imem_ready (imem_ready),
-      .dmem_ready (dmem_ready),
-      .dmem_req   (dmem_req),
-      .pc         (pc),
-      .mem_write  (mem_write),
-      .alu_result (alu_result),
-      .write_data (write_data),
-      .store_wstrb(store_wstrb),
-      .store_data (store_data),
-      .mem_addr   (mem_addr)
 `ifdef RISCV_FORMAL
-      ,
       .dbg_valid    (dbg_valid),
       .dbg_insn     (dbg_insn),
       .dbg_pc_rdata (dbg_pc_rdata),
@@ -100,8 +81,25 @@ module riscv_pipelined
       .dbg_mcycle   (dbg_mcycle),
       .dbg_minstret (dbg_minstret),
       .dbg_mcycleh  (dbg_mcycleh),
-      .dbg_minstreth(dbg_minstreth)
+      .dbg_minstreth(dbg_minstreth),
 `endif
+      .clk        (clk),
+      .core_en    (core_en),
+      .rst_n      (rst_n),
+      .instr      (instr),
+      .read_data  (read_data),
+      .timer_irq  (timer_irq),
+      .ext_irq    (ext_irq),
+      .imem_ready (imem_ready),
+      .dmem_ready (dmem_ready),
+      .dmem_req   (dmem_req),
+      .pc         (pc),
+      .mem_write  (mem_write),
+      .alu_result (alu_result),
+      .write_data (write_data),
+      .store_wstrb(store_wstrb),
+      .store_data (store_data),
+      .mem_addr   (mem_addr)
   );
 
 endmodule

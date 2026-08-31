@@ -3,6 +3,21 @@ module csr
 #(
     parameter int XLEN = 32
 ) (
+`ifdef RISCV_FORMAL
+    output logic [XLEN-1:0] dbg_csr_wdata,
+    output logic [XLEN-1:0] dbg_mscratch,
+    output logic [XLEN-1:0] dbg_mstatus,
+    output logic [XLEN-1:0] dbg_mtvec,
+    output logic [XLEN-1:0] dbg_mepc,
+    output logic [XLEN-1:0] dbg_mcause,
+    output logic [XLEN-1:0] dbg_mtval,
+    output logic [XLEN-1:0] dbg_mie,
+    output logic [XLEN-1:0] dbg_mip,
+    output logic [XLEN-1:0] dbg_mcycle,
+    output logic [XLEN-1:0] dbg_minstret,
+    output logic [XLEN-1:0] dbg_mcycleh,
+    output logic [XLEN-1:0] dbg_minstreth,
+`endif
     input logic clk,
     input logic core_en,
     input logic cycle_en,
@@ -40,22 +55,6 @@ module csr
     output logic [XLEN-1:0] trap_vector,
     output logic            mret_taken,
     output logic [XLEN-1:0] mepc_out
-`ifdef RISCV_FORMAL
-    ,
-    output logic [XLEN-1:0] dbg_csr_wdata,
-    output logic [XLEN-1:0] dbg_mscratch,
-    output logic [XLEN-1:0] dbg_mstatus,
-    output logic [XLEN-1:0] dbg_mtvec,
-    output logic [XLEN-1:0] dbg_mepc,
-    output logic [XLEN-1:0] dbg_mcause,
-    output logic [XLEN-1:0] dbg_mtval,
-    output logic [XLEN-1:0] dbg_mie,
-    output logic [XLEN-1:0] dbg_mip,
-    output logic [XLEN-1:0] dbg_mcycle,
-    output logic [XLEN-1:0] dbg_minstret,
-    output logic [XLEN-1:0] dbg_mcycleh,
-    output logic [XLEN-1:0] dbg_minstreth
-`endif
 );
 
   logic [XLEN-1:0] mstatus;
@@ -92,7 +91,7 @@ module csr
                         | exc_load_misaligned | exc_store_misaligned
                         | timer_ready | ext_ready;
   // Reject if trap, or if set/clear with zero source
-  assign csr_write_en = csr_access && !trap_taken && 
+  assign csr_write_en = csr_access && !trap_taken &&
                         !((funct3[1:0] == 2'b10 || funct3[1:0] == 2'b11) && (csr_wsrc == '0));
   assign trap_vector = {mtvec[31:2], 2'b00};  // Divide by 4 = remove last 2 bits
   assign mret_taken = is_mret;

@@ -5,6 +5,14 @@ module mem_arb
     parameter int APP_ADDR_WIDTH = 29,
     localparam int MaskBits = LineBits / 8
 ) (
+`ifdef RISCV_FORMAL
+    output logic [               1:0] dbg_state,
+    output logic [               1:0] dbg_src,
+    output logic                      dbg_cmd_done,
+    output logic                      dbg_wdf_done,
+    output logic                      dbg_resp_pending,
+    output logic                      dbg_req_rw,
+`endif
     input  logic                      clk,
     input  logic                      rst_n,
     input  logic                      core_en,
@@ -40,15 +48,6 @@ module mem_arb
     // Controller read data
     input  logic [      LineBits-1:0] app_rd_data,
     input  logic                      app_rd_data_valid
-`ifdef RISCV_FORMAL
-    ,
-    output logic [               1:0] dbg_state,
-    output logic [               1:0] dbg_src,
-    output logic                      dbg_cmd_done,
-    output logic                      dbg_wdf_done,
-    output logic                      dbg_resp_pending,
-    output logic                      dbg_req_rw
-`endif
 );
 
   localparam logic [2:0] AppWrite = 3'b000;
