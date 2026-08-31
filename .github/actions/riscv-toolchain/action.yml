@@ -1,0 +1,24 @@
+name: RISC-V toolchain
+description: Install the bare-metal RISC-V compiler and alias it to riscv64-elf-*
+
+inputs:
+  extra-packages:
+    description: Extra apt packages to install alongside the compiler
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install the RISC-V toolchain
+      shell: bash
+      run: |
+        sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
+        sudo apt-get update
+        sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf ${{ inputs.extra-packages }}
+    - name: Alias toolchain to riscv64-elf-*
+      shell: bash
+      run: |
+        for t in gcc objcopy; do
+          sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
+        done
