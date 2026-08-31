@@ -1,5 +1,10 @@
 name: CI
 
+env:
+  OSS_CAD_SUITE: '2026-07-24'
+  SV2V: 'v0.0.13'
+  RISCV_FORMAL_SHA: '2bd7410'
+
 on:
   push:
     branches: [main]
@@ -31,11 +36,10 @@ jobs:
         group: ${{ fromJSON(needs.testbench-list.outputs.groups) }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install Icarus Verilog
-        run: |
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y iverilog
+      - uses: YosysHQ/setup-oss-cad-suite@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
       - name: Run the testbench group
         run: |
           for mod in ${{ matrix.group }}; do
@@ -83,10 +87,11 @@ jobs:
       - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
       - name: Install sv2v
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/$SV2V/sv2v-Linux.zip -o sv2v.zip
           unzip -j sv2v.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Prove the group
@@ -107,13 +112,13 @@ jobs:
       - name: Install sv2v
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/$SV2V/sv2v-Linux.zip -o sv2v.zip
           unzip -j sv2v.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Clone riscv-formal
         run: |
           git clone https://github.com/YosysHQ/riscv-formal.git
-          git -C riscv-formal checkout 2bd7410
+          git -C riscv-formal checkout "$RISCV_FORMAL_SHA"
       - name: Split checks into groups
         id: list
         env:
@@ -134,16 +139,17 @@ jobs:
       - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
       - name: Install sv2v
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/$SV2V/sv2v-Linux.zip -o sv2v.zip
           unzip -j sv2v.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Clone riscv-formal
         run: |
           git clone https://github.com/YosysHQ/riscv-formal.git
-          git -C riscv-formal checkout 2bd7410
+          git -C riscv-formal checkout "$RISCV_FORMAL_SHA"
       - name: Prove the group
         env:
           RISCV_FORMAL_DIR: ${{ github.workspace }}/riscv-formal
@@ -153,16 +159,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Verilator and RISC-V toolchain
-        run: |
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y verilator gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-      - name: Alias toolchain to riscv64-elf-*
-        run: |
-          for t in gcc objcopy; do
-            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
-          done
+      - uses: YosysHQ/setup-oss-cad-suite@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
+      - uses: ./.github/actions/riscv-toolchain
       - name: Build CoreMark image
         run: make -C sw/coremark all
       - name: Boot CoreMark through the caches
@@ -172,16 +173,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Verilator and RISC-V toolchain
-        run: |
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y verilator gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-      - name: Alias toolchain to riscv64-elf-*
-        run: |
-          for t in gcc objcopy; do
-            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
-          done
+      - uses: YosysHQ/setup-oss-cad-suite@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
+      - uses: ./.github/actions/riscv-toolchain
       - name: Build the Embench images
         run: make -C sw/embench all
       - name: Boot the crc32 benchmark
@@ -191,16 +187,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Verilator and RISC-V toolchain
-        run: |
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y verilator gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-      - name: Alias toolchain to riscv64-elf-*
-        run: |
-          for t in gcc objcopy; do
-            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
-          done
+      - uses: YosysHQ/setup-oss-cad-suite@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
+      - uses: ./.github/actions/riscv-toolchain
       - name: Clone FreeRTOS-Kernel
         run: |
           git clone https://github.com/FreeRTOS/FreeRTOS-Kernel.git sw/FreeRTOS-Kernel
@@ -214,16 +205,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Install Icarus Verilog and RISC-V toolchain
-        run: |
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y iverilog gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf device-tree-compiler libfdt-dev
-      - name: Alias toolchain to riscv64-elf-*
-        run: |
-          for t in gcc objcopy; do
-            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
-          done
+      - uses: YosysHQ/setup-oss-cad-suite@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ env.OSS_CAD_SUITE }}
+      - uses: ./.github/actions/riscv-toolchain
+        with:
+          extra-packages: device-tree-compiler libfdt-dev
       - name: Cache Spike
         id: spike-cache
         uses: actions/cache@v6
@@ -254,20 +242,14 @@ jobs:
       - uses: YosysHQ/setup-oss-cad-suite@v4
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install sv2v and RISC-V toolchain
+          version: ${{ env.OSS_CAD_SUITE }}
+      - name: Install sv2v
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/v0.0.13/sv2v-Linux.zip -o sv2v.zip
+          curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://github.com/zachjs/sv2v/releases/download/$SV2V/sv2v-Linux.zip -o sv2v.zip
           unzip -j sv2v.zip -d "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          sudo grep -rlZ packages.microsoft.com /etc/apt/sources.list.d/ 2>/dev/null | sudo xargs -0 -r rm -f
-          sudo apt-get update
-          sudo apt-get install -y gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
-      - name: Alias toolchain to riscv64-elf-*
-        run: |
-          for t in gcc objcopy; do
-            sudo ln -sf "$(command -v riscv64-unknown-elf-$t)" /usr/local/bin/riscv64-elf-$t
-          done
+      - uses: ./.github/actions/riscv-toolchain
       - name: Prove the pc_plus4 keep holds
         run: bash gate_check.sh
 
