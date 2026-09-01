@@ -7,25 +7,7 @@ module datapath
     parameter int XLEN      = 32,
     parameter bit GSHARE_EN = 1'b1
 ) (
-    input  logic            clk,
-    input  logic            core_en,
-    input  logic            rst_n,
-    input  logic [XLEN-1:0] instr,
-    input  logic [XLEN-1:0] read_data,
-    input  logic            timer_irq,
-    input  logic            ext_irq,
-    input  logic            imem_ready,
-    input  logic            dmem_ready,
-    output logic            dmem_req,
-    output logic [XLEN-1:0] pc,
-    output logic            mem_write,
-    output logic [XLEN-1:0] alu_result,
-    output logic [XLEN-1:0] write_data,
-    output logic [     3:0] store_wstrb,
-    output logic [XLEN-1:0] store_data,
-    output logic [XLEN-1:0] mem_addr
-  `ifdef RISCV_FORMAL
-    ,
+`ifdef RISCV_FORMAL
     output logic            dbg_valid,
     output logic [XLEN-1:0] dbg_insn,
     output logic [XLEN-1:0] dbg_pc_rdata,
@@ -51,8 +33,25 @@ module datapath
     output logic [XLEN-1:0] dbg_mcycle,
     output logic [XLEN-1:0] dbg_minstret,
     output logic [XLEN-1:0] dbg_mcycleh,
-    output logic [XLEN-1:0] dbg_minstreth
+    output logic [XLEN-1:0] dbg_minstreth,
 `endif
+    input  logic            clk,
+    input  logic            core_en,
+    input  logic            rst_n,
+    input  logic [XLEN-1:0] instr,
+    input  logic [XLEN-1:0] read_data,
+    input  logic            timer_irq,
+    input  logic            ext_irq,
+    input  logic            imem_ready,
+    input  logic            dmem_ready,
+    output logic            dmem_req,
+    output logic [XLEN-1:0] pc,
+    output logic            mem_write,
+    output logic [XLEN-1:0] alu_result,
+    output logic [XLEN-1:0] write_data,
+    output logic [     3:0] store_wstrb,
+    output logic [XLEN-1:0] store_data,
+    output logic [XLEN-1:0] mem_addr
 );
 
   logic                   [XLEN-1:0] pc_next;
@@ -572,6 +571,21 @@ module datapath
   csr #(
       .XLEN(XLEN)
   ) csr_inst (
+`ifdef RISCV_FORMAL
+      .dbg_csr_wdata       (dbg_csr_wdata),
+      .dbg_mscratch        (dbg_mscratch),
+      .dbg_mstatus         (dbg_mstatus),
+      .dbg_mtvec           (dbg_mtvec),
+      .dbg_mepc            (dbg_mepc),
+      .dbg_mcause          (dbg_mcause),
+      .dbg_mtval           (dbg_mtval),
+      .dbg_mie             (dbg_mie),
+      .dbg_mip             (dbg_mip),
+      .dbg_mcycle          (dbg_mcycle),
+      .dbg_minstret        (dbg_minstret),
+      .dbg_mcycleh         (dbg_mcycleh),
+      .dbg_minstreth       (dbg_minstreth),
+`endif
       .clk                 (clk),
       .core_en             (core_en && commit_valid),
       .cycle_en            (core_en),
@@ -597,21 +611,6 @@ module datapath
       .trap_vector         (trap_vector),
       .mret_taken          (mret_taken),
       .mepc_out            (mepc_out)
-`ifdef RISCV_FORMAL,
-      .dbg_csr_wdata       (dbg_csr_wdata),
-      .dbg_mscratch        (dbg_mscratch),
-      .dbg_mstatus         (dbg_mstatus),
-      .dbg_mtvec           (dbg_mtvec),
-      .dbg_mepc            (dbg_mepc),
-      .dbg_mcause          (dbg_mcause),
-      .dbg_mtval           (dbg_mtval),
-      .dbg_mie             (dbg_mie),
-      .dbg_mip             (dbg_mip),
-      .dbg_mcycle          (dbg_mcycle),
-      .dbg_minstret        (dbg_minstret),
-      .dbg_mcycleh         (dbg_mcycleh),
-      .dbg_minstreth       (dbg_minstreth)
-`endif
   );
 
   assign result_ex = is_muldiv_ex ? muldiv_result : (csr_access_ex ? csr_rdata : alu_result);
