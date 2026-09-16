@@ -108,7 +108,7 @@ module mem_delay_tb;
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("mem_delay_tb.vcd");
     $dumpvars(0, mem_delay_tb);
 
     clk       = 1'b0;

@@ -102,7 +102,7 @@ module alu_tb
   endtask
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("alu_tb.vcd");
     $dumpvars(0, alu_tb);
 
     // Directed corner cases

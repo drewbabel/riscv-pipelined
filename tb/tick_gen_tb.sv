@@ -59,7 +59,7 @@ module tick_gen_tb ();
 
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("tick_gen_tb.vcd");
     $dumpvars(0, tick_gen_tb);
     do_reset();
 

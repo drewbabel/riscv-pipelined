@@ -38,7 +38,7 @@ module synchronizer_tb ();
 
   // Stimulus
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("synchronizer_tb.vcd");
     $dumpvars(0, synchronizer_tb);
 
     d = 1'b0;

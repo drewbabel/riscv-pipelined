@@ -81,7 +81,7 @@ module gshare_tb;
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("gshare_tb.vcd");
     $dumpvars(0, gshare_tb);
 
     clk = 1'b0;

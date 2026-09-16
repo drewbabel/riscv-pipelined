@@ -119,7 +119,7 @@ module mem_tb ();
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("mem_tb.vcd");
     $dumpvars(0, mem_tb);
 
     iaddr = '0;
