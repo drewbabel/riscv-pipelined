@@ -91,7 +91,7 @@ module btb_tb;
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("btb_tb.vcd");
     $dumpvars(0, btb_tb);
 
     clk = 1'b0;

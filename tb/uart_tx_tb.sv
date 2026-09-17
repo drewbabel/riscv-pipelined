@@ -84,7 +84,7 @@ module uart_tx_tb ();
   logic [7:0] got;
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("uart_tx_tb.vcd");
     $dumpvars(0, uart_tx_tb);
     pat[0] = 8'h41;
     pat[1] = 8'h55;

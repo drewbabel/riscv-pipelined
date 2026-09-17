@@ -83,7 +83,7 @@ module boot_loader_tb ();
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("boot_loader_tb.vcd");
     $dumpvars(0, boot_loader_tb);
     do_reset();
 

@@ -138,7 +138,7 @@ module icache_tb;
   endtask  // Automatic
 
   initial begin
-    $dumpfile("tb.vcd");
+    $dumpfile("icache_tb.vcd");
     $dumpvars(0, icache_tb);
 
     clk        = 1'b0;
