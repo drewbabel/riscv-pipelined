@@ -1,0 +1,30 @@
+name: OSS CAD Suite
+description: Install the pinned OSS CAD Suite and put its binaries on the path
+
+inputs:
+  version:
+    description: Release tag of the OSS CAD Suite build
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the CAD suite
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ runner.temp }}/oss-cad-suite
+        key: oss-cad-suite-linux-x64-${{ inputs.version }}
+    - name: Download the CAD suite
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TAG: ${{ inputs.version }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/oss-cad-suite"
+        curl -fsSL "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/$TAG/oss-cad-suite-linux-x64-${TAG//-/}.tgz" -o "$RUNNER_TEMP/cad.tgz"
+        tar -xzf "$RUNNER_TEMP/cad.tgz" -C "$RUNNER_TEMP/oss-cad-suite" --strip-components=1
+        rm "$RUNNER_TEMP/cad.tgz"
+    - name: Put the CAD suite on the path
+      shell: bash
+      run: echo "$RUNNER_TEMP/oss-cad-suite/bin" >> "$GITHUB_PATH"

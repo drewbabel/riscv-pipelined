@@ -36,9 +36,8 @@ jobs:
         group: ${{ fromJSON(needs.testbench-list.outputs.groups) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - name: Run the testbench group
         run: |
@@ -84,9 +83,8 @@ jobs:
         group: ${{ fromJSON(needs.formal-list.outputs.groups) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - name: Install sv2v
         run: |
@@ -136,9 +134,8 @@ jobs:
         group: ${{ fromJSON(needs.core-formal-list.outputs.groups) }}
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - name: Install sv2v
         run: |
@@ -159,9 +156,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - uses: ./.github/actions/riscv-toolchain
       - name: Build CoreMark image
@@ -173,9 +169,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - uses: ./.github/actions/riscv-toolchain
       - name: Build the Embench images
@@ -187,9 +182,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - uses: ./.github/actions/riscv-toolchain
       - name: Clone FreeRTOS-Kernel
@@ -205,9 +199,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - uses: ./.github/actions/riscv-toolchain
         with:
@@ -239,9 +232,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: YosysHQ/setup-oss-cad-suite@v4
+      - uses: ./.github/actions/oss-cad-suite
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ env.OSS_CAD_SUITE }}
       - name: Install sv2v
         run: |
