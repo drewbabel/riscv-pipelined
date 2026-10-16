@@ -2,6 +2,7 @@ module board_top_tb ();
 
   int          checks = 0;
   int          errors = 0;
+  int          max_errors = 0;
 
   logic        clk = 1'b0;
   logic        rst;
@@ -72,6 +73,7 @@ module board_top_tb ();
     if (got !== exp) begin
       $error("%s got %04x exp %04x", name, got, exp);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask
 
@@ -83,6 +85,7 @@ module board_top_tb ();
 
   // Word round trip
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("board_top_tb.vcd");
     $dumpvars(0, board_top_tb);
     $readmemh("tests/memtest.hex", prog);

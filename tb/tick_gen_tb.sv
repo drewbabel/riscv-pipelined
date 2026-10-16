@@ -3,6 +3,7 @@ module tick_gen_tb ();
   localparam int DIVISOR = 4;
 
   int   errors = 0;
+  int   max_errors = 0;
   int   checks = 0;
 
   logic clk = 0;
@@ -47,6 +48,7 @@ module tick_gen_tb ();
     if (got !== exp) begin
       errors++;
       $error("t=%0t mismatch: got=%b, exp=%b", $time, got, exp);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -59,6 +61,7 @@ module tick_gen_tb ();
 
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("tick_gen_tb.vcd");
     $dumpvars(0, tick_gen_tb);
     do_reset();

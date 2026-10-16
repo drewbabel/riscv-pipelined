@@ -3,6 +3,7 @@ module csr_tb;
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   localparam int Xlen = 32;
 
@@ -76,6 +77,7 @@ module csr_tb;
     if (got !== exp) begin
       errors++;
       $error("%s: got %h exp %h", name, got, exp);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask
 
@@ -119,6 +121,7 @@ module csr_tb;
   endtask
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("csr_tb.vcd");
     $dumpvars(0, csr_tb);
 

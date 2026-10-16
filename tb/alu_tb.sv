@@ -4,6 +4,7 @@ module alu_tb
 
   int checks = 0;
   int error_count = 0;
+  int max_errors = 0;
 
   localparam int XLEN = 32;
   localparam int SHAMT = $clog2(XLEN);  // Shift-amount width
@@ -66,6 +67,7 @@ module alu_tb
     if (got !== exp) begin
       error_count++;
       $display("ALU %s mismatch op=%0d a=%h b=%h exp=%h got=%h", flag_name, alu_op, a, b, exp, got);
+      if (error_count == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", error_count);
     end
   endtask
 
@@ -102,6 +104,7 @@ module alu_tb
   endtask
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("alu_tb.vcd");
     $dumpvars(0, alu_tb);
 
