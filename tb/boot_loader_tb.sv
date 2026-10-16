@@ -2,6 +2,7 @@ module boot_loader_tb ();
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   localparam int XLEN = 32;
   localparam int Depth = 20000;
@@ -56,6 +57,7 @@ module boot_loader_tb ();
     if (got !== exp) begin
       $error("%s got %08x exp %08x", name, got, exp);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -83,6 +85,7 @@ module boot_loader_tb ();
   endtask  // Automatic
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("boot_loader_tb.vcd");
     $dumpvars(0, boot_loader_tb);
     do_reset();

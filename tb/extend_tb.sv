@@ -2,6 +2,7 @@ module extend_tb;
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   localparam int Xlen = 32;
 
@@ -28,6 +29,7 @@ module extend_tb;
   endtask
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("extend_tb.vcd");
     $dumpvars(0, extend_tb);
 
@@ -49,6 +51,7 @@ module extend_tb;
       if (imm_ext !== exp) begin
         errors++;
         $error("vec %0d instr=%h: got %h exp %h", i, instr, imm_ext, exp);
+        if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
       end
     end
 

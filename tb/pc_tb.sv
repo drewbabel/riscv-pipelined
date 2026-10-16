@@ -1,6 +1,7 @@
 module pc_tb ();
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   localparam int Xlen = 32;
   localparam logic [Xlen-1:0] ResetAddr = '0;
@@ -50,14 +51,17 @@ module pc_tb ();
       if (pc_q !== ResetAddr) begin
         errors++;
         $display("Reset mismatch: pc_q=%h, expected=%h", pc_q, ResetAddr);
+        if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
       end
     end else if (pc_q !== exp_pc) begin
       errors++;
       $display("pc_q mismatch: pc_q=%h, expected=%h", pc_q, exp_pc);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("pc_tb.vcd");
     $dumpvars(0, pc_tb);
     do_reset();

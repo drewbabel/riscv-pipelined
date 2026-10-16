@@ -2,6 +2,7 @@ module uart_rx_tb ();
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
   int frames_sent = 0;
   int valid_frames = 0;
 
@@ -88,6 +89,7 @@ module uart_rx_tb ();
     if (got_data !== exp_data) begin
       errors++;
       $error("t=%0t data mismatch: got=%b, exp=%b", $time, got_data, exp_data);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -97,12 +99,14 @@ module uart_rx_tb ();
     if (rx_valid !== exp_valid) begin
       errors++;
       $error("t=%0t flag mismatch (valid): got=%b, exp=%b", $time, rx_valid, exp_valid);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
 
     checks++;
     if (rx_error !== exp_error) begin
       errors++;
       $error("t=%0t flag mismatch (error): got=%b, exp=%b", $time, rx_error, exp_error);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -113,6 +117,7 @@ module uart_rx_tb ();
     if (rx_valid || rx_error) begin
       errors++;
       $error("t=%0t flag held longer than %0d cycle(s)", $time, len);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -146,6 +151,7 @@ module uart_rx_tb ();
   endtask  // Automatic
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("uart_rx_tb.vcd");
     $dumpvars(0, uart_rx_tb);
     do_reset();
@@ -183,6 +189,7 @@ module uart_rx_tb ();
     if (rst_n && rx_valid && rx_error) begin
       errors++;
       $error("t=%0t rx_valid and rx_error both high", $time);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
 
 endmodule

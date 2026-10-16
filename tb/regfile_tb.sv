@@ -6,6 +6,7 @@ module regfile_tb ();
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   logic clk = 1'b0;
   logic rst_n = 1'b1;
@@ -61,6 +62,7 @@ module regfile_tb ();
     if (got !== exp) begin
       errors++;
       $display("Read mismatch addr=%0d exp=%h got=%h", addr, exp, got);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask
 
@@ -90,6 +92,7 @@ module regfile_tb ();
   end
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("regfile_tb.vcd");
     $dumpvars(0, regfile_tb);
     do_reset();

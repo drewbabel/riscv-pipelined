@@ -10,6 +10,7 @@ module sc_core_top_tb;
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
   int max_lat = 3;
   int en_period = 2;
 
@@ -242,6 +243,7 @@ module sc_core_top_tb;
     checks++;
     errors++;
     $error("t=%0t  %s", $time, what);
+    if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
   endtask  // Automatic
 
   // Freeze checks
@@ -278,6 +280,7 @@ module sc_core_top_tb;
     if (got !== exp) begin
       $error("%s = 0x%08h, expected 0x%08h", name, got, exp);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -288,6 +291,7 @@ module sc_core_top_tb;
   int ticks = 0;
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("sc_core_top_tb.vcd");
     $dumpvars(0, sc_core_top_tb);
 
@@ -321,6 +325,7 @@ module sc_core_top_tb;
     if (periph_writes != 1) begin
       $error("peripheral saw %0d write strobes, expected 1", periph_writes);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
 
     // Free running mcycle
@@ -328,12 +333,14 @@ module sc_core_top_tb;
     if (reg_of(10) <= 32'd13) begin
       $error("mcycle advanced %0d, no more than the instructions retired", reg_of(10));
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
 
     checks++;
     if (mem[64][31:0] !== 32'h0000_ABCD) begin
       $error("store did not reach memory, line holds 0x%08h", mem[64][31:0]);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
 
     if (errors == 0) $display("PASS: %0d checks, %0d mismatches", checks, errors);

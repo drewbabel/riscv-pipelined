@@ -6,6 +6,7 @@ module dmem_tb ();
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   logic clk = 1'b0;
   logic [3:0] wstrb;
@@ -58,6 +59,7 @@ module dmem_tb ();
     if (rdata !== exp) begin
       errors++;
       $display("Read mismatch addr=%h exp=%h got=%h", a, exp, rdata);
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask
 
@@ -74,6 +76,7 @@ module dmem_tb ();
   end
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("dmem_tb.vcd");
     $dumpvars(0, dmem_tb);
 
