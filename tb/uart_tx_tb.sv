@@ -2,6 +2,7 @@ module uart_tx_tb ();
 
   int   checks = 0;
   int   errors = 0;
+  int   max_errors = 0;
 
   logic clk = 1'b0;
   logic core_en;
@@ -71,6 +72,7 @@ module uart_tx_tb ();
     if (got !== exp) begin
       $error("%s got %02x exp %02x", name, got, exp);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -84,6 +86,7 @@ module uart_tx_tb ();
   logic [7:0] got;
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("uart_tx_tb.vcd");
     $dumpvars(0, uart_tx_tb);
     pat[0] = 8'h41;

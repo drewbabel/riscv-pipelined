@@ -16,6 +16,7 @@ module gshare_tb;
 
   int checks = 0;
   int errors = 0;
+  int max_errors = 0;
 
   // Reference model
   logic [GhistLen-1:0] ref_ghr;
@@ -42,6 +43,7 @@ module gshare_tb;
     if (got !== exp) begin
       $error("%s: got %0d exp %0d", name, got, exp);
       errors++;
+      if (errors == max_errors) $fatal(1, "TB STOPPED: %0d mismatches", errors);
     end
   endtask  // Automatic
 
@@ -81,6 +83,7 @@ module gshare_tb;
   endtask  // Automatic
 
   initial begin
+    void'($value$plusargs("max_errors=%d", max_errors));
     $dumpfile("gshare_tb.vcd");
     $dumpvars(0, gshare_tb);
 
